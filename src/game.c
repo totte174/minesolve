@@ -1,0 +1,116 @@
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
+
+#include "game.h"
+#include "board.h"
+#include "common.h"
+#include "permutations.h"
+#include "statistics.h"
+
+void calculate_adjacent_bombs(Board* board) {
+    for (int32_t i = 0; i < board->w*board->h; i++) {
+        board->v[i] = 0;
+        int32_t adj[8];
+        int32_t adj_c = get_adjacent(board, i, adj);
+        for (int32_t j = 0; j < adj_c; j++) {
+            if (board->bomb[adj[j]]) board->v[i] += 1;
+        }
+    }
+}
+
+void generate_board(int32_t w, int32_t h, int32_t bomb_c, Board* board) {
+    board->w = w;
+    board->h = h;
+    board->bomb_c = 0;
+    board->unknown_c = w*h;
+    for (int32_t i = 0; i < w*h; i++) {
+        board->v[i] = 0;
+        board->known[i] = false;
+        board->bomb[i] = false;
+    }
+
+    while (board->bomb_c < bomb_c) {
+        int32_t i = rand() % (w*h);
+        if (board->bomb[i]) continue;
+        board->bomb[i] = true;
+        board->bomb_c += 1; 
+    }
+
+    calculate_adjacent_bombs(board);
+}
+
+bool move(Board* board, int32_t i, bool first_click) {
+    if (board->known[i]) return true;
+
+    if (board->bomb[i]) {
+        if (first_click) {
+            while (true) {
+                int32_t new_i = rand() % board->w*board->h;
+                if (board->bomb[new_i]) continue;
+                board->bomb[new_i] = true;
+                break;
+            }
+            board->bomb[i] = false;
+            calculate_adjacent_bombs(board);
+            return move(board, i, false);
+        }
+        else return false;
+    }
+    else {
+        board->known[i] = true;
+        board->unknown_c -= 1;
+        if (board->v[i] == 0) {
+            int32_t adj[8];
+            int32_t adj_c = get_adjacent(board, i, adj);
+            for (int32_t j = 0; j < adj_c; j++) move(board, adj[j], false);
+        }
+        return true;
+    }
+}
+
+bool play_game(int32_t w, int32_t h, int32_t bomb_c) {
+    static Board board;
+    static Border border;
+    PermutationSet* perm_set = malloc(sizeof(PermutationSet) + 256UL * 1024UL * sizeof(Permutation));
+
+    generate_board(w, h, bomb_c, &board);
+    move(&board, 0, true);
+
+    while(board.unknown_c > bomb_c) {
+        get_border(&board, &border);
+        if (DEBUG) {
+            printf("Border known: ");
+            for (int32_t i = 0; i < border.border_known_c; i++) {
+                printf("(%d,%d),", border.border_known[i]%board.w, border.border_known[i]/board.w);
+            }
+            printf("\n");
+            printf("Border known count: %d\n", border.border_known_c);
+            printf("Outside known count: %d\n", border.outside_known_c);
+            printf("Border unknown: ");
+            for (int32_t i = 0; i < border.border_unknown_c; i++) {
+                printf("(%d,%d),", border.border_unknown[i]%board.w, border.border_unknown[i]/board.w);
+            }
+            printf("\n");
+            printf("Border unknown count: %d\n", border.border_unknown_c);
+            printf("Outside unknown count: %d\n", border.outside_unknown_c);
+
+        }
+        
+        get_permutations(&board, &border, perm_set);
+        BoardStatistics* statistics = get_statistics(&board, &border, perm_set);
+        if (true) {
+            //print_statistics(&board, statistics, true, true, true, false);
+            //print_board(&board);
+            //printf("Best move: (%d,%d), p=%f\n", statistics->best_p % w, statistics->best_p / w, statistics->p[statistics->best_p]);
+        }
+        
+        if (!move(&board, statistics->best_p, false)) {
+            free(perm_set);
+            //printf("loss\n");
+            return false;
+        }
+    }
+    free(perm_set);
+    return true;
+}
