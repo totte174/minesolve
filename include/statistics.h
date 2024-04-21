@@ -11,10 +11,8 @@
 #include "statistics.h"
 #include "common.h"
 
-double choose(double n, double k);
 double gini(double p);
 double entropy(double p);
-double combinations_from_kcount(KCount* kcount, int32_t n);
 void initialize_intermediate(IntermediateStatistics* intermediate, int32_t n, int32_t border_unknown_c);
 void get_intermediates(Board* board, Border* border, PermutationSet* permutation_set,
                        IntermediateStatistics* main_intermediate, IntermediateStatistics* outside_intermediate,
@@ -28,10 +26,11 @@ void get_border_gini_and_information_gain(IntermediateStatistics* border_interme
 
 void get_gini_and_information_gain(Board* board, Border* border, IntermediateStatistics* border_intermediates,
                                    IntermediateStatistics* outside_intermediate,
-                                   double* gini_impurity, double* information_gain);
+                                   BoardStatistics* statistics);
 
-void get_probability(Board* board, Border* border, IntermediateStatistics* intermediate, double* p);
+void get_probability(Board* board, Border* border, IntermediateStatistics* intermediate, BoardStatistics* statistics);
+void get_value(Board* board, BoardStatistics* statistics, double alpha, double beta);
 void print_statistics(Board* board, BoardStatistics* statistics, bool p, bool gini, bool inf_gain, bool value);
-BoardStatistics* get_statistics(Board* board, Border* border, PermutationSet* permutation_set);
+BoardStatistics* get_statistics(Board* board, Border* border, PermutationSet* permutation_set, double alpha, double beta);
 
 #endif

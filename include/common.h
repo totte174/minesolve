@@ -4,20 +4,35 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#define max(a,b)             \
+({                           \
+    __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a > _b ? _a : _b;       \
+})
+
+#define min(a,b)             \
+({                           \
+    __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a < _b ? _a : _b;       \
+})
+
 #define DEBUG false
-#define MAX_PERMUTATIONS (1024ULL*1024ULL)
-#define MAX_BOMBS 256
+#define MAX_PERMUTATIONS (16ULL * 1024ULL*1024ULL)
+#define MAX_MINES 256
 #define MAX_SQUARES 1024
-#define PERMUTATION_PARTS 2 // Longest possible border_unknown_c to be <= PERMUTATION_PARTS * 64
+#define PERMUTATION_PARTS (MAX_BORDER_UNKNOWN / 64) // Longest possible border_unknown_c to be <= PERMUTATION_PARTS * 64
+#define MAX_BORDER_UNKNOWN 192
 
 typedef struct Board {
     int32_t w;
     int32_t h;
-    int32_t bomb_c;
+    int32_t mine_c;
     int32_t unknown_c;
     int32_t v[MAX_SQUARES];
     bool known[MAX_SQUARES];
-    bool bomb[MAX_SQUARES];
+    bool mines[MAX_SQUARES];
 } Board;
 
 typedef struct Border {
@@ -38,17 +53,17 @@ typedef struct Equation {
 
 typedef struct EquationSet {
     int32_t equation_c;
-    Equation equations[MAX_SQUARES];
+    Equation* equations[MAX_SQUARES];
     int32_t unknown_c;
-    int32_t solved[MAX_SQUARES];
-    int32_t splits[MAX_SQUARES];
+    int32_t solved[MAX_BORDER_UNKNOWN];
+    int32_t splits[MAX_BORDER_UNKNOWN];
     int32_t split_c;
 } EquationSet;
 
 typedef struct Permutation {
-    int32_t bomb_amount;
+    int32_t mine_c;
     uint64_t mask[PERMUTATION_PARTS];
-    uint64_t bombs[PERMUTATION_PARTS];
+    uint64_t mines[PERMUTATION_PARTS];
 } Permutation;
 
 typedef struct PermutationSet {
@@ -66,15 +81,13 @@ typedef struct BoardStatistics {
     double value[MAX_SQUARES];
 } BoardStatistics;
 
-typedef struct KCount {
-    int32_t count[MAX_BOMBS];
-} KCount;
-
 typedef struct IntermediateStatistics {
     int32_t border_unknown_c;
     int32_t n;
-    KCount total;
-    KCount per_square[MAX_SQUARES];
+    bool valid;
+    double comb_total;
+    double p_border_unknown[MAX_BORDER_UNKNOWN];
+    double p_outside;
 } IntermediateStatistics;
 
 #endif

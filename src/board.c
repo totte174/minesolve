@@ -65,7 +65,11 @@ void get_border(Board* board, Border* border) {
 }
 
 void print_board(Board* board) {
+    printf("+");
+    for (int32_t x = 0; x < board->w; x++) printf("-");
+    printf("+\n");
     for (int32_t y = 0; y < board->h; y++) {
+        printf("|");
         for (int32_t x = 0; x < board->w; x++) {
             if (board->known[y*board->w + x]){
                 printf("%d", board->v[y*board->w + x]);
@@ -74,6 +78,9 @@ void print_board(Board* board) {
                 printf(" ");
             }
         }
-        printf("\n");
+        printf("|\n");
     }
+    printf("+");
+    for (int32_t x = 0; x < board->w; x++) printf("-");
+    printf("+\n");
 }

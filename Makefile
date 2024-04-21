@@ -5,7 +5,8 @@ TARGET := bin/run
 SRCEXT := c
 SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
-CFLAGS := -Wall -g
+CFLAGS := -Wall -O3
+DEBUGFLAGS := -Wall -g
 INC := -I include -lm
 
 $(TARGET): $(OBJECTS)
@@ -21,7 +22,10 @@ clean:
 	@echo " Cleaning..."; 
 	@echo " $(RM) -r $(BUILDDIR) $(TARGET)"; $(RM) -r $(BUILDDIR) $(TARGET)
 
-msprob:
-	$(CC) $(CFLAGS) src/main.c src/board.c src/permutations.c src/statistics.c src/game.c $(INC) -o bin/msprob
+mssolve:
+	$(CC) $(CFLAGS) $(SOURCES) $(INC) -o bin/mssolve
+
+debug:
+	$(CC) $(DEBUGFLAGS) $(SOURCES) $(INC) -o bin/mssolve-debug
 
 .PHONY: clean
