@@ -353,7 +353,7 @@ PermutationSet* get_permutations(Board* board, Border* border){
     static PermutationSet* permutation_set = (PermutationSet*) permutation_set_mem;
 
     static uint8_t temp_permutation_set_mem[(MAX_PERMUTATIONS / 4)*sizeof(Permutation) + sizeof(PermutationSet)];
-    PermutationSet* temp_permutation_set = (PermutationSet*) temp_permutation_set_mem;
+    static PermutationSet* temp_permutation_set = (PermutationSet*) temp_permutation_set_mem;
 
     for (int32_t i = 0; i < border->border_known_c; i++) equation_set.equations[i] = equations + i;
 
@@ -402,13 +402,15 @@ PermutationSet* get_permutations(Board* board, Border* border){
 
     // Create trivial permutation of solved equations
     trivial_permutation_set(&equation_set, permutation_set);
-
+    //printf("Permutation counts per split: ");
     for (int32_t i = 0; i < equation_set.split_c; i++) {
         if (DEBUG) print_permutations(border->border_unknown_c, permutation_set);
  
         permutations_of_split(&equation_set, i, temp_permutation_set);
+        //printf("%d ", temp_permutation_set->permutation_c);
         join_permutationsets(permutation_set, temp_permutation_set);
     }
+    //printf("Total: %d\n", permutation_set->permutation_c);
 
     if (DEBUG) 
         print_permutations(border->border_unknown_c, permutation_set);

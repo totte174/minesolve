@@ -128,7 +128,7 @@ int32_t main(int32_t argc, char** argv)
     arguments.width = 30;
     arguments.height = 16;
     arguments.mines = 99;
-    arguments.test_games = 10000;
+    arguments.test_games = 100000;
     arguments.alpha = 0;
     arguments.beta = 0;
     arguments.output_file = "";
@@ -146,6 +146,6 @@ int32_t main(int32_t argc, char** argv)
     {
         if (play_game(arguments.width, arguments.height, arguments.mines, arguments.alpha, arguments.beta)) wins++;
     }
-    printf("%d\n", wins);
+    printf("%'d\n", wins);
     exit(0);
 }
