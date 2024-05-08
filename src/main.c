@@ -36,6 +36,7 @@ static struct argp_option options[] = {
     {"alpha", 'a', "ALPHA", 0, "Alpha parameter to use with solver."},
     {"beta", 'b', "BETA", 0, "Beta parameter to use with solver."},
     {"test", 't', "NUM", 0, "Let solver play NUM games and output the number of wins."},
+    {"p_only", 'p', 0, 0, "Only use probability for determining value "},
     {0}};
 
 /* Used by main to communicate with parse_opt. */
@@ -45,6 +46,7 @@ struct arguments
     char* output_file;
     int32_t width, height, mines, test_games;
     double alpha, beta;
+    bool p_only;
 };
 
 /* Parse a single option. */
@@ -98,6 +100,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     case 't':
         arguments->test_games = atoi(arg);
         break;
+    case 'p':
+        arguments->p_only = true;
+        break;
 
 
     case ARGP_KEY_ARG:
@@ -132,6 +137,7 @@ int32_t main(int32_t argc, char** argv)
     arguments.alpha = 0;
     arguments.beta = 0;
     arguments.output_file = "";
+    arguments.p_only = false;
 
     /* Parse our arguments; every option seen by parse_opt will
        be reflected in arguments. */
@@ -144,7 +150,7 @@ int32_t main(int32_t argc, char** argv)
     int32_t wins = 0;
     for (int32_t i = 0; i < arguments.test_games; i++)
     {
-        if (play_game(arguments.width, arguments.height, arguments.mines, arguments.alpha, arguments.beta)) wins++;
+        if (play_game(arguments.width, arguments.height, arguments.mines, arguments.alpha, arguments.beta, arguments.p_only)) wins++;
     }
     printf("%'d\n", wins);
     exit(0);

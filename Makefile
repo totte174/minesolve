@@ -26,6 +26,6 @@ mssolve:
 	$(CC) $(CFLAGS) $(SOURCES) $(INC) -o bin/mssolve
 
 debug:
-	$(CC) $(DEBUGFLAGS) $(SOURCES) $(INC) -o bin/mssolve-debug
+	$(CC) $(DEBUGFLAGS) $(SOURCES) $(INC) -pg -o bin/mssolve-debug
 
 .PHONY: clean

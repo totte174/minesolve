@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "game.h"
 #include "board.h"
@@ -69,11 +70,13 @@ bool move(Board* board, int32_t i, bool first_click) {
     }
 }
 
-bool play_game(int32_t w, int32_t h, int32_t mine_c, double alpha, double beta) {
+bool play_game(int32_t w, int32_t h, int32_t mine_c, double alpha, double beta, bool p_only) {
     static Board board;
     static Border border;
     generate_board(w, h, mine_c, &board);
-    move(&board, 0, true);
+    bool first_move = true;
+    //move(&board, 0, true);
+    //first_move = false;
 
     while(board.unknown_c > mine_c) {
         get_border(&board, &border);
@@ -96,23 +99,38 @@ bool play_game(int32_t w, int32_t h, int32_t mine_c, double alpha, double beta) 
         }
         
         PermutationSet* perm_set = get_permutations(&board, &border);
-        BoardStatistics* statistics = get_statistics(&board, &border, perm_set, alpha, beta);
-        if (true) {
-            //printf("Permutations: %d", perm_set->permutation_c);
-            //print_statistics(&board, statistics, true, true, true, true);
-            //print_board(&board);
-            //printf("Best move: (%d,%d), p=%f\n", statistics->best_p % w, statistics->best_p / w, statistics->p[statistics->best_p]);
-        }
+        printf("Total Permutations: %d\n", perm_set->total_permutation_c);
+        BoardStatistics* statistics = get_statistics(&board, &border, perm_set, alpha, beta, p_only);
+
+        //print_board(&board);
+        //print_permutation_set(border.border_unknown_c, perm_set);
+        //print_statistics(&board, statistics, true, true, true, true, true);
+        //printf("Best move: (%d,%d), p=%f\n", statistics->best_value % w, statistics->best_value / w, statistics->p[statistics->best_value]);
+        //char s[2];
+        //fgets(s, 2, stdin);
+
         if (board.known[statistics->best_value]){
             printf("BEST VALUE IS KNOWN\n");
             exit(1);
         }
-        
-        if (!move(&board, statistics->best_value, false)) {
+
+        if (statistics->p[statistics->best_p] == 0) {
+            for (int32_t i = 0; i < board.w * board.h; i++) {
+                if (statistics->p[i] == 0 && !board.known[i]) {
+                    if (!move(&board, i, first_move)) {
+                        return false;
+                    }
+                    first_move = false;
+                }
+            }
+        }
+        else if (!move(&board, statistics->best_value, first_move)) {
             //printf("loss\n");
             //print_board(&board);
             return false;
         }
+        first_move = false;
+
     }
     //print_board(&board);
     return true;

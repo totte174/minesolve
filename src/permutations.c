@@ -210,14 +210,13 @@ void split(EquationSet* equation_set) {
     }
 }
 
-void equation_permutations(Equation* equation, PermutationSet* permutation_set){
+int32_t equation_permutations(Equation* equation, Permutation* permutations){
     uint64_t mask[PERMUTATION_PARTS] = {0};
     for (int32_t i = 0; i < equation->unknown_c; i++) {
         mask[equation->unknown[i]/64] |= 1ULL << ((uint64_t)(equation->unknown[i] % 64));
     }
 
-    permutation_set->permutation_c = 0;
-
+    int32_t permutation_c = 0;
     for (uint64_t x = 0; x < (1 << (uint64_t)equation->unknown_c); x++) {
         if (__builtin_popcountll(x) == equation->amount) {
             uint64_t mines[PERMUTATION_PARTS] = {0};
@@ -226,12 +225,13 @@ void equation_permutations(Equation* equation, PermutationSet* permutation_set){
                     mines[equation->unknown[i]/64] |= 1LL << ((uint64_t)(equation->unknown[i] % 64));
                 }
             }
-            permutation_set->permutations[permutation_set->permutation_c].mine_c = equation->amount;
-            memcpy(permutation_set->permutations[permutation_set->permutation_c].mask, &mask, sizeof(mask));
-            memcpy(permutation_set->permutations[permutation_set->permutation_c].mines, &mines, sizeof(mines));
-            permutation_set->permutation_c++;
+            permutations[permutation_c].mine_c = equation->amount;
+            memcpy(permutations[permutation_c].mask, &mask, sizeof(mask));
+            memcpy(permutations[permutation_c].mines, &mines, sizeof(mines));
+            permutation_c++;
         }
     }
+    return permutation_c;
 }
 
 bool permutation_intersect(Permutation* permutation1, Permutation* permutation2) {
@@ -253,94 +253,103 @@ bool join_permutations(Permutation* new_permutation, Permutation* permutation1, 
     return true;
 }
 
-void join_permutationsets(PermutationSet* permutation_set1, PermutationSet* permutation_set2) {
-    // Join permutationsets into permutation_set1
+void join_permutations_noconflict(Permutation* new_permutation, Permutation* permutation1, Permutation* permutation2) {
+    // Join permutation1 and permutation2 into new_permutation, assumes they dont conflict
+    new_permutation->mine_c = permutation1->mine_c + permutation2->mine_c;
+    for (int32_t i = 0; i < PERMUTATION_PARTS; i++) {
+        new_permutation->mask[i] = permutation1->mask[i] | permutation2->mask[i];
+        new_permutation->mines[i] = permutation1->mines[i] | permutation2->mines[i];
+    }
+}
 
-    // Copy permutation_set1 to temp_permutation_set
-    int32_t permutation_set_size = sizeof(PermutationSet) + permutation_set1->permutation_c * sizeof(Permutation);
-    PermutationSet* temp_permutation_set = malloc(permutation_set_size);
-    memcpy(temp_permutation_set, permutation_set1, permutation_set_size);
-    permutation_set1->permutation_c = 0;
+int32_t join_permutation_arrays(Permutation* permutations1, int32_t permutations1_c, Permutation* permutations2, int32_t permutations2_c) {
+    // Join permutations into permutations1
 
-    for (int32_t i = 0; i < temp_permutation_set->permutation_c; i++) {
-        for (int32_t j = 0; j < permutation_set2->permutation_c; j++) {
-            if (join_permutations(&permutation_set1->permutations[permutation_set1->permutation_c], 
-                                  &temp_permutation_set->permutations[i], &permutation_set2->permutations[j])) {
-                permutation_set1->permutation_c++;
+    // Copy permutations1 to temp_permutation_set
+    static Permutation temp_permutations[MAX_PERMUTATIONS];
+    memcpy(temp_permutations, permutations1, sizeof(Permutation) * permutations1_c);
+    int32_t permutation_c = 0;
+
+    for (int32_t i = 0; i < permutations1_c; i++) {
+        for (int32_t j = 0; j < permutations2_c; j++) {
+            if (join_permutations(permutations1 + permutation_c, 
+                                  temp_permutations + i, permutations2 + j)) {
+                permutation_c++;
             }
         }
     }
-    free(temp_permutation_set);
+    return permutation_c;
 }
 
-void permutations_of_split(EquationSet* equation_set, int32_t split_i, PermutationSet* permutation_set) {
-    PermutationSet* temp_perm_set = alloca(sizeof(PermutationSet) + 64 * sizeof(Permutation));
-    // First set permutationset to first equations permutations
-    int32_t equation_start, equation_end;
-    if (split_i == 0) equation_start = 0;
-    else equation_start = equation_set->splits[split_i-1];
-    equation_end = equation_set->splits[split_i];
+void permutations_of_splits(EquationSet* equation_set, PermutationSet* permutation_set) {
+    Permutation temp_equation_perms[64];
 
-    equation_permutations(equation_set->equations[equation_start], permutation_set);
+    permutation_set->permutation_c = 0;
+    permutation_set->total_permutation_c = 1;
+    permutation_set->split_c = equation_set->split_c;
+    for (int32_t split_i = 0; split_i < equation_set->split_c; split_i++) {
+        int32_t split_start = permutation_set->permutation_c;
+        permutation_set->splits_start[split_i] = split_start;
 
-    if (DEBUG) {
-        printf("---------split permutations: %d - %d ---------------\n", equation_start, equation_end);
-        printf("Equation: %d\n", equation_start);
-        printf("Permutations:\n");
-        print_permutations(40, permutation_set);
-        printf("Total Permutations:\n");
-        print_permutations(40, permutation_set);
-        printf("\n");
-    }
-    
-
-    //Then join with rest of equations permutations
-    for (int32_t i = equation_start + 1; i < equation_end; i++) {
-        equation_permutations(equation_set->equations[i], temp_perm_set);
-        join_permutationsets(permutation_set, temp_perm_set);
-        if (DEBUG) {
-            printf("Equation: %d\n", i);
-            printf("Permutations:\n");
-            print_permutations(40, temp_perm_set);
-            printf("Total Permutations:\n");
-            print_permutations(40, permutation_set);
-            printf("\n");
-        }
         
+
+        int32_t equation_start, equation_end;
+        if (split_i == 0) equation_start = 0;
+        else equation_start = equation_set->splits[split_i-1];
+        equation_end = equation_set->splits[split_i];
+
+        int32_t split_permutations = equation_permutations(equation_set->equations[equation_start], permutation_set->permutations + split_start);
+
+        for (int32_t i = equation_start + 1; i < equation_end; i++) {
+            int32_t equation_perms = equation_permutations(equation_set->equations[i], temp_equation_perms);
+            split_permutations = join_permutation_arrays(permutation_set->permutations + split_start, split_permutations, temp_equation_perms, equation_perms);
+        }
+        permutation_set->splits_length[split_i] = split_permutations;
+        permutation_set->permutation_c += split_permutations;
+        permutation_set->total_permutation_c *= split_permutations;
     }
 }
 
-void trivial_permutation_set(EquationSet* equation_set, PermutationSet* permutation_set) {
-    permutation_set->permutation_c = 1;
-    permutation_set->permutations[0].mine_c = 0;
+void solved_permutation(EquationSet* equation_set, Permutation* permutation) {
+    permutation->mine_c = 0;
     for (int32_t i = 0; i < PERMUTATION_PARTS; i++) {
-        permutation_set->permutations[0].mines[i] = 0;
-        permutation_set->permutations[0].mask[i] = 0;
+        permutation->mines[i] = 0;
+        permutation->mask[i] = 0;
     }
     for (uint64_t i = 0; i < equation_set->unknown_c; i++) {
         if (equation_set->solved[i] == 0){
-            permutation_set->permutations[0].mask[i / 64] |= 1ULL << (i % 64);
+            permutation->mask[i / 64] |= 1ULL << (i % 64);
         }
         else if (equation_set->solved[i] == 1){
-            permutation_set->permutations[0].mask[i / 64] |= 1ULL << (i % 64);
-            permutation_set->permutations[0].mines[i / 64] |= 1ULL << (i % 64);
-            permutation_set->permutations[0].mine_c += 1;
+            permutation->mask[i / 64] |= 1ULL << (i % 64);
+            permutation->mines[i / 64] |= 1ULL << (i % 64);
+            permutation->mine_c += 1;
         }
     }
 }
 
-void print_permutations(int32_t border_unknown_c, PermutationSet* permutation_set) {
-    printf("Permutation size: %d\n", permutation_set->permutation_c);
-    for (int32_t i = 0; i < permutation_set->permutation_c; i++) {
-        for (uint64_t j = 0; j < border_unknown_c; j++) {
-            if ((permutation_set->permutations[i].mask[j / 64] >> (j % 64)) & 1ULL) {
-                printf("%llu", (permutation_set->permutations[i].mines[j / 64] >> (j % 64)) & 1ULL);
-            }
-            else {
-                printf(" ");
-            }
+void print_permutation(int32_t border_unknown_c, Permutation* permutation) {
+    for (uint64_t j = 0; j < border_unknown_c; j++) {
+        if ((permutation->mask[j / 64] >> (j % 64)) & 1ULL) {
+            printf("%llu", (permutation->mines[j / 64] >> (j % 64)) & 1ULL);
         }
-        printf(":%d\n", permutation_set->permutations[i].mine_c);
+        else {
+            printf(" ");
+        }
+    }
+    printf(":%d\n", permutation->mine_c);
+}
+
+void print_permutation_set(int32_t border_unknown_c, PermutationSet* permutation_set) {
+    printf("Total permutations: %d\n", permutation_set->total_permutation_c);
+    printf("Solved permutation:\n");
+    print_permutation(border_unknown_c, &permutation_set->solved_permutation);
+    printf("Permutations: %d\n", permutation_set->permutation_c);
+    for (int32_t split_i = 0; split_i < permutation_set->split_c; split_i++) {
+        printf("--- Split %d\n", split_i);
+        for (int32_t i = 0; i < permutation_set->splits_length[split_i]; i++) {
+            print_permutation(border_unknown_c, permutation_set->permutations + i + permutation_set->splits_start[split_i]);
+        }
     }
 }
 
@@ -349,11 +358,7 @@ PermutationSet* get_permutations(Board* board, Border* border){
     static Equation equations[MAX_SQUARES];
     static EquationSet equation_set;
 
-    static uint8_t permutation_set_mem[MAX_PERMUTATIONS*sizeof(Permutation) + sizeof(PermutationSet)];
-    static PermutationSet* permutation_set = (PermutationSet*) permutation_set_mem;
-
-    static uint8_t temp_permutation_set_mem[(MAX_PERMUTATIONS / 4)*sizeof(Permutation) + sizeof(PermutationSet)];
-    static PermutationSet* temp_permutation_set = (PermutationSet*) temp_permutation_set_mem;
+    static PermutationSet permutation_set;
 
     for (int32_t i = 0; i < border->border_known_c; i++) equation_set.equations[i] = equations + i;
 
@@ -400,20 +405,11 @@ PermutationSet* get_permutations(Board* board, Border* border){
     }
     
 
-    // Create trivial permutation of solved equations
-    trivial_permutation_set(&equation_set, permutation_set);
-    //printf("Permutation counts per split: ");
-    for (int32_t i = 0; i < equation_set.split_c; i++) {
-        if (DEBUG) print_permutations(border->border_unknown_c, permutation_set);
- 
-        permutations_of_split(&equation_set, i, temp_permutation_set);
-        //printf("%d ", temp_permutation_set->permutation_c);
-        join_permutationsets(permutation_set, temp_permutation_set);
-    }
-    //printf("Total: %d\n", permutation_set->permutation_c);
+    solved_permutation(&equation_set, &permutation_set.solved_permutation);
+    permutations_of_splits(&equation_set, &permutation_set);
 
     if (DEBUG) 
-        print_permutations(border->border_unknown_c, permutation_set);
+        print_permutation_set(border->border_unknown_c, &permutation_set);
 
-    return permutation_set;
+    return &permutation_set;
 }

@@ -19,7 +19,7 @@
 })
 
 #define DEBUG false
-#define MAX_PERMUTATIONS (16ULL * 1024ULL*1024ULL)
+#define MAX_PERMUTATIONS (4ULL*1024ULL*1024ULL)
 #define MAX_MINES 256
 #define MAX_SQUARES 1024
 #define PERMUTATION_PARTS (MAX_BORDER_UNKNOWN / 64) // Longest possible border_unknown_c to be <= PERMUTATION_PARTS * 64
@@ -67,8 +67,13 @@ typedef struct Permutation {
 } Permutation;
 
 typedef struct PermutationSet {
+    Permutation solved_permutation;
     int32_t permutation_c;
-    Permutation permutations[];
+    int32_t total_permutation_c;
+    int32_t splits_length[MAX_BORDER_UNKNOWN];
+    int32_t splits_start[MAX_BORDER_UNKNOWN];
+    int32_t split_c;
+    Permutation permutations[MAX_PERMUTATIONS];
 } PermutationSet;
 
 typedef struct BoardStatistics {
@@ -76,6 +81,7 @@ typedef struct BoardStatistics {
     int32_t best_value;
 
     double p[MAX_SQUARES];
+    double p2[MAX_SQUARES];
     double gini_impurity[MAX_SQUARES];
     double information_gain[MAX_SQUARES];
     double value[MAX_SQUARES];

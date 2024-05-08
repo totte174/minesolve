@@ -64,6 +64,16 @@ void get_border(Board* board, Border* border) {
     }
 }
 
+bool is_on_perimeter(Board* board, int32_t p) {
+    return (p / board->w == 0 || p / board->w == board->h - 1 || // is top or bottom
+            p % board->w == 0 || p % board->w == board->w - 1);  // Left or right
+}
+
+bool is_on_corner(Board* board, int32_t p) {
+    return (p / board->w == 0 || p / board->w == board->h - 1) && // is top or bottom
+           (p % board->w == 0 || p % board->w == board->w - 1);  // Left or right
+}
+
 void print_board(Board* board) {
     printf("+");
     for (int32_t x = 0; x < board->w; x++) printf("-");
