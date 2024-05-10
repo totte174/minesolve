@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <alloca.h>
 #include <malloc.h>
+#include <stdlib.h>
 
 #include "permutations.h"
 
@@ -282,7 +283,7 @@ int32_t join_permutation_arrays(Permutation* permutations1, int32_t permutations
 }
 
 void permutations_of_splits(EquationSet* equation_set, PermutationSet* permutation_set) {
-    Permutation temp_equation_perms[64];
+    Permutation temp_equation_perms[256];
 
     permutation_set->permutation_c = 0;
     permutation_set->total_permutation_c = 1;
@@ -307,6 +308,11 @@ void permutations_of_splits(EquationSet* equation_set, PermutationSet* permutati
         permutation_set->splits_length[split_i] = split_permutations;
         permutation_set->permutation_c += split_permutations;
         permutation_set->total_permutation_c *= split_permutations;
+
+        if (permutation_set->permutation_c > MAX_PERMUTATIONS) {
+            printf("permutation_set->permutation_c > MAX_PERMUTATIONS");
+            exit(1);
+        }
     }
 }
 

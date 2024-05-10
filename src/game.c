@@ -97,13 +97,20 @@ bool play_game(int32_t w, int32_t h, int32_t mine_c, double alpha, double beta, 
             printf("Outside unknown count: %d\n", border.outside_unknown_c);
 
         }
+
+        if (border.border_unknown_c > MAX_BORDER_UNKNOWN) {
+            printf("BORDER_UNKNOWN_C > MAX_BORDER_UNKNOWN\n");
+            exit(1);
+        }
         
         PermutationSet* perm_set = get_permutations(&board, &border);
-        printf("Total Permutations: %d\n", perm_set->total_permutation_c);
+        //printf("Total Permutations: %d\n", perm_set->total_permutation_c);
+
         BoardStatistics* statistics = get_statistics(&board, &border, perm_set, alpha, beta, p_only);
 
         //print_board(&board);
         //print_permutation_set(border.border_unknown_c, perm_set);
+        //print_statistics(&board, statistics, true, false, false, false, false);
         //print_statistics(&board, statistics, true, true, true, true, true);
         //printf("Best move: (%d,%d), p=%f\n", statistics->best_value % w, statistics->best_value / w, statistics->p[statistics->best_value]);
         //char s[2];

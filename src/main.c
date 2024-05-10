@@ -133,11 +133,11 @@ int32_t main(int32_t argc, char** argv)
     arguments.width = 30;
     arguments.height = 16;
     arguments.mines = 99;
-    arguments.test_games = 100000;
+    arguments.test_games = 10000000;
     arguments.alpha = 0;
     arguments.beta = 0;
     arguments.output_file = "";
-    arguments.p_only = false;
+    arguments.p_only = true;
 
     /* Parse our arguments; every option seen by parse_opt will
        be reflected in arguments. */

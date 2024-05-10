@@ -19,11 +19,12 @@
 })
 
 #define DEBUG false
-#define MAX_PERMUTATIONS (4ULL*1024ULL*1024ULL)
+#define MAX_PERMUTATIONS (16*1024*1024)
 #define MAX_MINES 256
 #define MAX_SQUARES 1024
+#define MAX_MINE_C_DIFF 18
 #define PERMUTATION_PARTS (MAX_BORDER_UNKNOWN / 64) // Longest possible border_unknown_c to be <= PERMUTATION_PARTS * 64
-#define MAX_BORDER_UNKNOWN 192
+#define MAX_BORDER_UNKNOWN (3*64)
 
 typedef struct Board {
     int32_t w;
