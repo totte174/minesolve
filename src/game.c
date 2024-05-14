@@ -70,17 +70,18 @@ bool move(Board* board, int32_t i, bool first_click) {
     }
 }
 
-bool play_game(int32_t w, int32_t h, int32_t mine_c, double alpha, double beta, bool p_only) {
+bool play_game(Arguments* args) {
     static Board board;
     static Border border;
-    generate_board(w, h, mine_c, &board);
+    generate_board(args->width, args->height, args->mines, &board);
     bool first_move = true;
     //move(&board, 0, true);
     //first_move = false;
 
-    while(board.unknown_c > mine_c) {
+    while(board.unknown_c > args->mines) {
         get_border(&board, &border);
         if (DEBUG) {
+            print_board(&board);
             printf("Border known: ");
             for (int32_t i = 0; i < border.border_known_c; i++) {
                 printf("(%d,%d),", border.border_known[i]%board.w, border.border_known[i]/board.w);
@@ -106,10 +107,10 @@ bool play_game(int32_t w, int32_t h, int32_t mine_c, double alpha, double beta, 
         PermutationSet* perm_set = get_permutations(&board, &border);
         //printf("Total Permutations: %d\n", perm_set->total_permutation_c);
 
-        BoardStatistics* statistics = get_statistics(&board, &border, perm_set, alpha, beta, p_only);
+        BoardStatistics* statistics = get_statistics(&board, &border, perm_set, args);
 
         //print_board(&board);
-        //print_permutation_set(border.border_unknown_c, perm_set);
+        //print_permutation_set(perm_set, border.border_unknown_c);
         //print_statistics(&board, statistics, true, false, false, false, false);
         //print_statistics(&board, statistics, true, true, true, true, true);
         //printf("Best move: (%d,%d), p=%f\n", statistics->best_value % w, statistics->best_value / w, statistics->p[statistics->best_value]);

@@ -19,6 +19,22 @@ int32_t get_adjacent(Board* board, int32_t p, int32_t* adj) {
     return i;
 }
 
+int32_t get_adjacent_unknown(Board* board, int32_t p, int32_t* adj) {
+    int32_t i = 0;
+    int32_t a_adj[] =  {p - board->w - 1,   p - board->w,   p - board->w + 1,
+                        p - 1,              p,              p + 1,
+                        p + board->w - 1,   p + board->w,   p + board->w + 1};
+    for (int j = 0; j < 9; j++) {
+        if (a_adj[j] < 0 || a_adj[j] >= board->w * board->h) continue;
+        if (p % board->w == 0 && j % 3 == 0) continue;
+        if (p % board->w == board->w-1 && j % 3 == 2) continue; 
+        if (a_adj[j] == p) continue;
+        if (board->known[a_adj[j]]) continue;
+        adj[i++] = a_adj[j];
+    }
+    return i;
+}
+
 bool is_border_unknown(Board* board, int32_t p) {
     if (board->known[p]) return false;
     int32_t adj[8];

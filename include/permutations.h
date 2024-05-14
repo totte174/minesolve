@@ -8,7 +8,9 @@
 #include "board.h"
 #include "common.h"
 
-void set_equations(Board* board, Border* border, EquationSet* equation_set);
+void get_equations(Board* board, Border* border, EquationSet* equation_set);
+void print_equation(Equation* eq, int32_t border_unknown_c);
+void print_equation_set(EquationSet* equation_set);
 bool is_subequation(Equation* eq, Equation* super_eq);
 bool equations_intersect(Equation* eq1, Equation* eq2);
 void remove_subequation(Equation* eq, Equation* super_eq);
@@ -19,12 +21,11 @@ void split(EquationSet* equation_set);
 int32_t equation_permutations(Equation* equation, Permutation* permutations);
 bool permutation_intersect(Permutation* permutation1, Permutation* permutation2);
 bool join_permutations(Permutation* new_permutation, Permutation* permutation1, Permutation* permutation2);
-void join_permutations_noconflict(Permutation* new_permutation, Permutation* permutation1, Permutation* permutation2);
 int32_t join_permutation_arrays(Permutation* permutations1, int32_t permutations1_c, Permutation* permutations2, int32_t permutations2_c);
 void permutations_of_splits(EquationSet* equation_set, PermutationSet* permutation_set);
-void solved_permutation(EquationSet* equation_set, Permutation* permutation);
-void print_permutation(int32_t border_unknown_c, Permutation* permutation);
-void print_permutation_set(int32_t border_unknown_c, PermutationSet* permutation_set);
+int32_t mine_c(Permutation* permutation);
+void print_permutation(Permutation* permutation, int32_t border_unknown_c);
+void print_permutation_set(PermutationSet* permutation_set, int32_t border_unknown_c);
 PermutationSet* get_permutations(Board* board, Border* border);
 
 #endif

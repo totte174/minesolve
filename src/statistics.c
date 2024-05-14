@@ -1,56 +1,62 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include <malloc.h>
-#include <alloca.h>
 #include <math.h>
-#include <assert.h>
 #include <stdlib.h>
 
 #include "statistics.h"
-#include "common.h"
-#include "permutations.h"
 
 double gini(double p) {
-    return p * (1 - p);
+    return p * (1 - p) * 4;
 } 
 
 double entropy(double p) {
     if (p <= 0) return 0;
-    return -p * log2(p);
+    if (p >= 1) return 0;
+    return - p * log2(p) - (1-p)*log2(1-p);
 }
 
-void initialize_intermediate(IntermediateStatistics* intermediate, int32_t n, int32_t border_unknown_c) {
-    intermediate->border_unknown_c = border_unknown_c;
-    intermediate->n = n;
-    intermediate->valid = true;
-    intermediate->comb_total = 0;
-    intermediate->p_outside = 0;
+double choose(double n, double k) {
+    if (n < k) return 0;
+    if (k == 0) return 1;
+    return (n * choose(n - 1, k - 1)) / k;
+}
+
+void initialize_pmap(ProbabilityMap* pmap, int32_t n, int32_t border_unknown_c) {
+    pmap->border_unknown_c = border_unknown_c;
+    pmap->n = n;
+    pmap->valid = true;
+    pmap->comb_total = 0;
+    pmap->p_outside = 0;
     for (int32_t i = 0; i < border_unknown_c; i++){
-        intermediate->p_border_unknown[i] = 0;
+        pmap->p_border_unknown[i] = 0;
     }
 }
 
-void get_intermediate(Board* board, Border* border, PermutationSet* permutation_set,
-                      IntermediateStatistics* intermediate, int32_t forced_i, int32_t n) {
+void get_pmap(Board* board, Border* border, PermutationSet* permutation_set,
+                      ProbabilityMap* pmap, int32_t forced_i, int32_t n) {
     static int32_t split_mine_c_min[MAX_BORDER_UNKNOWN];
     static int32_t split_mine_c_max[MAX_BORDER_UNKNOWN];
+    if (n < 0) { 
+        pmap->valid = false;
+        return;
+    }
 
-    initialize_intermediate(intermediate, n, border->border_unknown_c);
-    int32_t total_mine_c_min = permutation_set->solved_permutation.mine_c;
-    int32_t total_mine_c_max = permutation_set->solved_permutation.mine_c;
+    initialize_pmap(pmap, n, border->border_unknown_c);
+    int32_t total_mine_c_min = mine_c(&permutation_set->solved_permutation);
+    int32_t total_mine_c_max = mine_c(&permutation_set->solved_permutation);
     for (int32_t split_i = 0; split_i < permutation_set->split_c; split_i++) 
     {
         split_mine_c_min[split_i] = MAX_MINES;
         split_mine_c_max[split_i] = 0;
         for (int32_t i = 0; i < permutation_set->splits_length[split_i]; i++){
-            Permutation perm = permutation_set->permutations[permutation_set->splits_start[split_i] + i];
-            if (forced_i >= 0 && (((perm.mask[forced_i / 64] & perm.mines[forced_i / 64]) >> (forced_i % 64)) & 1)) continue;
-            split_mine_c_min[split_i] = min(split_mine_c_min[split_i], perm.mine_c);
-            split_mine_c_max[split_i] = max(split_mine_c_max[split_i], perm.mine_c);
+            Permutation* perm = permutation_set->permutations + permutation_set->splits_start[split_i] + i;
+            if (forced_i >= 0 && mask_get(perm->mines, forced_i)) continue;
+            split_mine_c_min[split_i] = min(split_mine_c_min[split_i], mine_c(perm));
+            split_mine_c_max[split_i] = max(split_mine_c_max[split_i], mine_c(perm));
         }
-        if (split_mine_c_max[split_i] < split_mine_c_min[split_i]) { //Not valid permutation in split -> not valid intermediate
-            intermediate->valid = false;
+        if (split_mine_c_max[split_i] < split_mine_c_min[split_i]) { //Not valid permutation in split -> not valid pmap
+            pmap->valid = false;
             return;
         }
         total_mine_c_min += split_mine_c_min[split_i];
@@ -64,7 +70,7 @@ void get_intermediate(Board* board, Border* border, PermutationSet* permutation_
     double rel_mine_c_p_border_unknown[MAX_MINE_C_DIFF][MAX_BORDER_UNKNOWN] = {0};
     double rel_mine_c_total_combs[MAX_MINE_C_DIFF] = {0};
     for (int32_t i = 0; i < border->border_unknown_c; i++) {
-        if (((permutation_set->solved_permutation.mask[i / 64] & permutation_set->solved_permutation.mines[i / 64]) >> (i % 64)) & 1) {
+        if (mask_get(permutation_set->solved_permutation.mines, i)) {
             rel_mine_c_p_border_unknown[0][i] = 1;
         }
     }   
@@ -76,14 +82,14 @@ void get_intermediate(Board* board, Border* border, PermutationSet* permutation_
         double split_rel_mine_c_total_combs[MAX_MINE_C_DIFF] = {0};        
 
         for (int32_t i = 0; i < permutation_set->splits_length[split_i]; i++) {
-            Permutation perm = permutation_set->permutations[permutation_set->splits_start[split_i] + i];
-            if (forced_i >= 0 && (((perm.mask[forced_i / 64] & perm.mines[forced_i / 64]) >> (forced_i % 64)) & 1)) continue;
+            Permutation* perm = permutation_set->permutations + permutation_set->splits_start[split_i] + i;
+            if (forced_i >= 0 && mask_get(perm->mines, forced_i)) continue;
 
-            int32_t rel_mine_c = perm.mine_c - split_mine_c_min[split_i];
+            int32_t rel_mine_c = mine_c(perm) - split_mine_c_min[split_i];
             split_rel_mine_c_total_combs[rel_mine_c] += 1;
 
             for (int32_t i = 0; i < border->border_unknown_c; i++) {
-                if ((perm.mines[i / 64] >> (i % 64)) & 1) {
+                if (mask_get(perm->mines, i)) {
                     split_rel_mine_c_p_border_unknown[rel_mine_c][i] += 1;
                 }
             }    
@@ -125,323 +131,70 @@ void get_intermediate(Board* board, Border* border, PermutationSet* permutation_
 
     for (int32_t rel_mine_c = total_mine_c_min_valid - total_mine_c_min; rel_mine_c <= total_mine_c_max_valid - total_mine_c_min; rel_mine_c++) {
         int32_t k = board->mine_c - total_mine_c_min - rel_mine_c;
-        intermediate->comb_total += rel_mine_c_total_combs[rel_mine_c] * rel_mine_c_weighting[rel_mine_c];
-        intermediate->p_outside += rel_mine_c_total_combs[rel_mine_c] * rel_mine_c_weighting[rel_mine_c] * ((double) k);
+        pmap->comb_total += rel_mine_c_total_combs[rel_mine_c] * rel_mine_c_weighting[rel_mine_c];
+        pmap->p_outside += rel_mine_c_total_combs[rel_mine_c] * rel_mine_c_weighting[rel_mine_c] * ((double) k);
         for (int32_t i = 0; i < border->border_unknown_c; i++) {
-            intermediate->p_border_unknown[i] += rel_mine_c_p_border_unknown[rel_mine_c][i] * rel_mine_c_weighting[rel_mine_c];
+            pmap->p_border_unknown[i] += rel_mine_c_p_border_unknown[rel_mine_c][i] * rel_mine_c_weighting[rel_mine_c];
         }
     }
 
-    if (n>0) intermediate->p_outside /= intermediate->comb_total * ((double) n);
-    for (int32_t i = 0; i < border->border_unknown_c; i++) {
-        intermediate->p_border_unknown[i] /= intermediate->comb_total;
+    if (pmap->comb_total == 0) { //No valid permutations
+        pmap->valid = false;
+        return;
     }
+
+    if (n>0) pmap->p_outside /= pmap->comb_total * ((double) n);
+    for (int32_t i = 0; i < border->border_unknown_c; i++) {
+        pmap->p_border_unknown[i] /= pmap->comb_total;
+    }
+    pmap->comb_total *= choose(n, board->mine_c - total_mine_c_min_valid);
 }
 
-void get_intermediates(Board* board, Border* border, PermutationSet* permutation_set,
-                       IntermediateStatistics* main_intermediate, IntermediateStatistics* outside_intermediate,
-                       IntermediateStatistics* border_intermediates) {
-    static double normalized_combs[MAX_MINES];
-    static double normalized_combs_n_less[MAX_MINES];
-    const int32_t max_k_diff = 10;
-
-    int32_t mine_c_ref = permutation_set->solved_permutation.mine_c;
-    for (int32_t split_i = 0; split_i < permutation_set->split_c; split_i++) 
-    {
-        mine_c_ref += permutation_set->permutations[permutation_set->splits_start[split_i]].mine_c;
+void get_auxiliary_information(ProbabilityMap* pmap, int32_t forced_i, double* p2, double* gini_impurity, double* information_gain) {
+    *p2 = 1;
+    *gini_impurity = 0;
+    *information_gain = 0;
+    if (!pmap->valid) {
+        return;
     }
-
-    int32_t n = border->outside_unknown_c;
-    int32_t k_ref = min(n, max(0, board->mine_c - mine_c_ref));
-    int32_t k_min = max(0, k_ref-max_k_diff);
-    int32_t k_max = min(n, k_ref + max_k_diff);
     
-    normalized_combs[k_ref] = 1.0;
-    normalized_combs_n_less[k_ref] = 1.0;
-    for (int32_t k = k_ref + 1; k <= k_max; k++){
-        normalized_combs[k] = normalized_combs[k-1] * ((double)(n-k+1))/((double)k);
-        normalized_combs_n_less[k] = normalized_combs_n_less[k-1] * ((double)(n-k))/((double)k);
+    for (int32_t i = 0; i < pmap->border_unknown_c; i++) {
+        if (i==forced_i) continue;
+        *p2 = min(*p2, pmap->p_border_unknown[i]);
+        *gini_impurity += gini(pmap->p_border_unknown[i]);
+        *information_gain += entropy(pmap->p_border_unknown[i]);
     }
-    for (int32_t k = k_ref - 1; k >= k_min && k >= 0; k--){
-        normalized_combs[k] = normalized_combs[k+1] * ((double)k+1)/((double)(n-k));
-        normalized_combs_n_less[k] = normalized_combs_n_less[k+1] * ((double)k+1)/((double)(n-k-1));
+    if (pmap->n > 0) {
+        *p2 = min(*p2, pmap->p_outside);
+        *gini_impurity += ((double)pmap->n) * gini(pmap->p_outside);
+        *information_gain += ((double)pmap->n) * entropy(pmap->p_outside);
     }
-   
-
-    initialize_intermediate(main_intermediate, n, border->border_unknown_c);
-    initialize_intermediate(outside_intermediate, n-1, border->border_unknown_c);
-    for (int32_t i = 0; i < border->border_unknown_c; i++)
-    {
-        initialize_intermediate(border_intermediates + i, n, border->border_unknown_c);
-    }
-
-
-    for (int32_t perm_i = 0; perm_i < permutation_set->total_permutation_c; perm_i++) {
-        static Permutation perm;
-        memcpy(&perm, &permutation_set->solved_permutation, sizeof(Permutation));
-        int32_t real_perm_start = 1;
-        for (int32_t split_i = 0; split_i < permutation_set->split_c; split_i++) {
-            int32_t real_perm_i = permutation_set->splits_start[split_i] + ((perm_i / real_perm_start) % permutation_set->splits_length[split_i]);
-            join_permutations_noconflict(&perm, &perm, permutation_set->permutations + real_perm_i);
-            real_perm_start *= permutation_set->splits_length[split_i];
-        }
-        //print_permutation(border->border_unknown_c, &perm);
-
-        int32_t k = board->mine_c - perm.mine_c;
-        if (k < 0 || k > n) continue;
-        // DEBUG
-        if (abs(k-k_ref) > max_k_diff) {
-            printf("K OUT OF BOUNDS");
-            exit(1);
-        }
-
-        main_intermediate->p_outside += ((double)k) * normalized_combs[k];
-        outside_intermediate->p_outside += ((double)k) * normalized_combs_n_less[k];
-        main_intermediate->comb_total += normalized_combs[k];
-        outside_intermediate->comb_total += normalized_combs_n_less[k];
-        
-
-        for (int32_t i = 0; i < border->border_unknown_c; i++) {
-            if ((perm.mines[i / 64] >> (i % 64)) & 1) {
-                main_intermediate->p_border_unknown[i] += normalized_combs[k];
-                outside_intermediate->p_border_unknown[i] += normalized_combs_n_less[k];
-            }
-            else {
-                for (int32_t j = 0; j < border->border_unknown_c; j++) {
-                    if ((perm.mines[j / 64] >> (j % 64)) & 1) {
-                        border_intermediates[i].p_border_unknown[j] += normalized_combs[k];
-                    }
-                }
-                border_intermediates[i].comb_total += normalized_combs[k];
-                border_intermediates[i].p_outside += ((double)k) * normalized_combs[k];
-            }
-        }
-    }
-
-    if (main_intermediate->comb_total == 0) {
-        main_intermediate->valid = false;
-    }
-    else {
-        if (n > 0) main_intermediate->p_outside /= main_intermediate->comb_total * ((double)n);
-        for (int32_t i = 0; i < border->border_unknown_c; i++) {
-            main_intermediate->p_border_unknown[i] /= main_intermediate->comb_total;
-        }
-    }
-
-    if (outside_intermediate->comb_total == 0) {
-        outside_intermediate->valid = false;
-    }
-    else {
-        if (n-1 > 0) outside_intermediate->p_outside /= outside_intermediate->comb_total * ((double)(n-1));
-        for (int32_t i = 0; i < border->border_unknown_c; i++) {
-            outside_intermediate->p_border_unknown[i] /= outside_intermediate->comb_total;
-        }
-    }
-
-    for (int32_t inter_i = 0; inter_i < border->border_unknown_c; inter_i++) {
-        if (border_intermediates[inter_i].comb_total == 0) {
-            border_intermediates[inter_i].valid = false;
-            continue;
-        }
-        if (n>0) border_intermediates[inter_i].p_outside /= border_intermediates[inter_i].comb_total * ((double)n);
-
-        for (int32_t i = 0; i < border->border_unknown_c; i++) {
-            border_intermediates[inter_i].p_border_unknown[i] /= border_intermediates[inter_i].comb_total;
-        }
-    }
+    *gini_impurity /= pmap->border_unknown_c + pmap->n;
+    *information_gain /= pmap->border_unknown_c + pmap->n;
 }
 
-void get_probability_p_only(Board* board, Border* border, PermutationSet* permutation_set, IntermediateStatistics* main_intermediate, BoardStatistics* statistics) {
-    static double normalized_combs[MAX_MINES];
-    const int32_t max_k_diff = 10;
-
-    int32_t mine_c_ref = permutation_set->solved_permutation.mine_c;
-    for (int32_t split_i = 0; split_i < permutation_set->split_c; split_i++) 
-    {
-        mine_c_ref += permutation_set->permutations[permutation_set->splits_start[split_i]].mine_c;
-    }
-
-    int32_t n = border->outside_unknown_c;
-    int32_t k_ref = min(n, max(0, board->mine_c - mine_c_ref));
-    int32_t k_min = max(0, k_ref-max_k_diff);
-    int32_t k_max = min(n, k_ref + max_k_diff);
-    
-    normalized_combs[k_ref] = 1.0;
-    for (int32_t k = k_ref + 1; k <= k_max; k++){
-        normalized_combs[k] = normalized_combs[k-1] * ((double)(n-k+1))/((double)k);
-    }
-    for (int32_t k = k_ref - 1; k >= k_min && k >= 0; k--){
-        normalized_combs[k] = normalized_combs[k+1] * ((double)k+1)/((double)(n-k));
-    }
-   
-
-    initialize_intermediate(main_intermediate, n, border->border_unknown_c);
-
-    for (int32_t perm_i = 0; perm_i < permutation_set->total_permutation_c; perm_i++) {
-        static Permutation perm;
-        memcpy(&perm, &permutation_set->solved_permutation, sizeof(Permutation));
-        int32_t real_perm_start = 1;
-        for (int32_t split_i = 0; split_i < permutation_set->split_c; split_i++) {
-            int32_t real_perm_i = permutation_set->splits_start[split_i] + ((perm_i / real_perm_start) % permutation_set->splits_length[split_i]);
-            join_permutations_noconflict(&perm, &perm, permutation_set->permutations + real_perm_i);
-            real_perm_start *= permutation_set->splits_length[split_i];
-        }
-
-        int32_t k = board->mine_c - perm.mine_c;
-        if (k < 0 || k > n) continue;
-
-        main_intermediate->p_outside += ((double)k) * normalized_combs[k];
-        main_intermediate->comb_total += normalized_combs[k];
-        
-
-        for (int32_t i = 0; i < border->border_unknown_c; i++) {
-            if ((perm.mines[i / 64] >> (i % 64)) & 1) {
-                main_intermediate->p_border_unknown[i] += normalized_combs[k];
-            }
-        }
-    }
-
-    if (main_intermediate->comb_total == 0) {
-        main_intermediate->valid = false;
-    }
-    else {
-        if (n > 0) main_intermediate->p_outside /= main_intermediate->comb_total * ((double)n);
-        for (int32_t i = 0; i < border->border_unknown_c; i++) {
-            main_intermediate->p_border_unknown[i] /= main_intermediate->comb_total;
-        }
-    }
-
-    if (!main_intermediate->valid) {
-        printf("NOT VALID");
-        exit(1);
-    }
-    for (int32_t i = 0; i < board->w * board->h; i++) {
-        if (!board->known[i]) {
-            statistics->p[i] = main_intermediate->p_outside;
-        }
-        else {
-            statistics->p[i] = 0;
-        }
-        statistics->gini_impurity[i] = 0;
-        statistics->information_gain[i] = 0;
-        statistics->p2[i] = 0;
-    }
-    for (int32_t i = 0; i < border->border_unknown_c; i++) {
-        statistics->p[border->border_unknown[i]] = main_intermediate->p_border_unknown[i];
-    }
-}
-
-void get_border_gini_and_information_gain(IntermediateStatistics* border_intermediates, int32_t intermediate_c, 
-                                          IntermediateStatistics* outside_intermediate,
-                                          double* border_gini_impurity, double* border_information_gain, 
-                                          double* outside_gini_impurity, double* outside_information_gain,
-                                          double* border_p2, double* outside_p2) {
-    *outside_gini_impurity = 0;
-    *outside_information_gain = 0;
-    *outside_p2 = 1;
-    for (int32_t inter_i = 0; inter_i < intermediate_c; inter_i++) {
-        border_p2[inter_i] = 1;
-        border_gini_impurity[inter_i] = 0;
-        border_information_gain[inter_i] = 0;
-        if (!border_intermediates[inter_i].valid) continue;
-        for (int32_t i = 0; i < border_intermediates[inter_i].border_unknown_c; i++) {
-            if (!isfinite(border_intermediates[inter_i].p_border_unknown[i])) {
-                border_p2[inter_i] = INFINITY;
-                border_gini_impurity[inter_i] = INFINITY;
-                border_information_gain[inter_i] = INFINITY;
-                //printf("INFINITE PROBABILITY!");
-
-            }
-            else {
-                if (i!=inter_i) border_p2[inter_i] = min(border_p2[inter_i], border_intermediates[inter_i].p_border_unknown[i]);
-                border_gini_impurity[inter_i] += gini(border_intermediates[inter_i].p_border_unknown[i]);
-                border_information_gain[inter_i] += entropy(border_intermediates[inter_i].p_border_unknown[i]);
-            }
-        }
-        border_p2[inter_i] = min(border_p2[inter_i], border_intermediates[inter_i].p_outside);
-        border_gini_impurity[inter_i] += ((double)border_intermediates[inter_i].n) * gini(border_intermediates[inter_i].p_outside);
-        border_information_gain[inter_i] += ((double)border_intermediates[inter_i].n) * entropy(border_intermediates[inter_i].p_outside);
-    }
-    if (!outside_intermediate->valid) return;
-    for (int32_t i = 0; i < outside_intermediate->border_unknown_c; i++) {
-        *outside_p2 = min(*outside_p2, outside_intermediate->p_border_unknown[i]);
-        *outside_gini_impurity += gini(outside_intermediate->p_border_unknown[i]);
-        *outside_information_gain += entropy(outside_intermediate->p_border_unknown[i]);
-    }
-    *outside_p2 = min(*outside_p2, outside_intermediate->p_outside);
-    *outside_gini_impurity += ((double)outside_intermediate->n) * gini(outside_intermediate->p_outside);
-    *outside_information_gain += ((double)outside_intermediate->n) * entropy(outside_intermediate->p_outside);
-
-}
-
-void get_gini_and_information_gain(Board* board, Border* border, IntermediateStatistics* border_intermediates,
-                                   IntermediateStatistics* outside_intermediate,
-                                   BoardStatistics* statistics) {
-    double border_p2[MAX_BORDER_UNKNOWN];
-    double border_gini_impurity[MAX_BORDER_UNKNOWN];
-    double border_information_gain[MAX_BORDER_UNKNOWN];
-    double outside_p2;
-    double outside_gini_impurity;
-    double outside_information_gain;
-
-    get_border_gini_and_information_gain(border_intermediates, border->border_unknown_c, outside_intermediate, 
-                                         border_gini_impurity, border_information_gain, &outside_gini_impurity, 
-                                         &outside_information_gain, border_p2, &outside_p2);
-
-    for (int32_t i = 0; i < board->w * board->h; i++) {
-        if (!board->known[i]) {
-            statistics->p2[i] = outside_p2;
-            statistics->gini_impurity[i] = outside_gini_impurity;
-            statistics->information_gain[i] = outside_information_gain;
-        }
-        else {
-            statistics->p2[i] = 0;
-            statistics->gini_impurity[i] = 0;
-            statistics->information_gain[i] = 0;
-        }
-    }
-    //printf("Valid: ");
-    for (int32_t i = 0; i < border->border_unknown_c; i++) {
-        //printf("%d", border_intermediates[i].valid);
-        statistics->p2[border->border_unknown[i]] = border_p2[i];
-        statistics->gini_impurity[border->border_unknown[i]] = border_gini_impurity[i];
-        statistics->information_gain[border->border_unknown[i]] = border_information_gain[i];
-    }
-    //printf("\nBorder valid: %d\n", outside_intermediate->valid);
-    
-}
-
-void get_probability(Board* board, Border* border, IntermediateStatistics* main_intermediate, BoardStatistics* statistics) {
-    if (!main_intermediate->valid) {
-        printf("NOT VALID");
-        exit(1);
-    }
-    for (int32_t i = 0; i < board->w * board->h; i++) {
-        if (!board->known[i]) {
-            statistics->p[i] = main_intermediate->p_outside;
-        }
-        else {
-            statistics->p[i] = 0;
-        }
-    }
-    for (int32_t i = 0; i < border->border_unknown_c; i++) {
-        statistics->p[border->border_unknown[i]] = main_intermediate->p_border_unknown[i];
-    }
-}
-
-void get_value(Board* board, BoardStatistics* statistics, double alpha, double beta) {
-    const double eta = 0.0;
-    const double prio_perimeter = 0.000;
-    const double prio_corner = 0.000; //0.001
+void get_value(Board* board, BoardStatistics* statistics, double alpha, double beta, double eta) {
     for (int32_t i = 0; i < board->w * board->h; i++) {
         if (board->known[i]) {
             statistics->value[i] = -INFINITY;
         }
         else {
-            statistics->value[i] =  - statistics->p[i]
-                                    + prio_perimeter    * is_on_perimeter(board, i)
-                                    + prio_corner       * is_on_corner(board, i)
-                                    - eta               * statistics->p2[i]
+            int32_t x = i % board->w;
+            int32_t y = i / board->w;
+            int32_t manhattan_d = x + y;
+            int32_t chebyshev_d = max(x,y);
+            int32_t adj[8];
+            int32_t adj_unknown = get_adjacent_unknown(board, i, adj);
+
+            double p12 = 1 - (1 - statistics->p[i]) * (1 - statistics->p2[i]);
+            double weighted_p = (1 - eta) * statistics->p[i] + eta * p12;
+
+            statistics->value[i] =  - weighted_p
+                                    + PRIO_PERIMETER    * is_on_perimeter(board, i)     * 0.0001
+                                    + PRIO_CORNER       * is_on_corner(board, i)        * 0.0001
+                                    - PRIO_MANHATTAN    * manhattan_d                   * 0.000001
+                                    - PRIO_CHEBYSHEV    * chebyshev_d                   * 0.000001
+                                    - PRIO_ADJACENT     * adj_unknown                   * 0.00001
                                     - alpha             * statistics->gini_impurity[i]
                                     - beta              * statistics->information_gain[i];
         }
@@ -450,7 +203,7 @@ void get_value(Board* board, BoardStatistics* statistics, double alpha, double b
 
 void print_statistics(Board* board, BoardStatistics* statistics, bool p, bool p2, bool gini, bool inf_gain, bool value) {
     if (p) {
-        printf("Probability\n");
+        printf("Probability (Total combinations: %f)\n", statistics->total_combinations);
         for (int32_t y = 0; y < board->h; y++) {
             for (int32_t x = 0; x < board->w; x++) {
                 if (board->known[y*board->w + x]) printf("      ");
@@ -502,27 +255,75 @@ void print_statistics(Board* board, BoardStatistics* statistics, bool p, bool p2
 
 }
 
-BoardStatistics* get_statistics(Board* board, Border* border, PermutationSet* permutation_set, double alpha, double beta, bool p_only) {
+BoardStatistics* get_statistics(Board* board, Border* border, PermutationSet* permutation_set, Arguments* args) {
     static BoardStatistics statistics;
-    static IntermediateStatistics main_intermediate;
-    static IntermediateStatistics outside_intermediate;
-    static IntermediateStatistics border_intermediates[MAX_BORDER_UNKNOWN];
+    static ProbabilityMap main_pmap;
+    static ProbabilityMap outside_pmap;
+    static ProbabilityMap border_pmaps[MAX_BORDER_UNKNOWN];
 
-    if (!p_only){
-        get_intermediates(board, border, permutation_set, &main_intermediate, &outside_intermediate, border_intermediates);
-        get_probability(board, border, &main_intermediate, &statistics);
-        get_gini_and_information_gain(board, border, border_intermediates, &outside_intermediate, &statistics);
+    get_pmap(board, border, permutation_set, &main_pmap, -1, border->outside_unknown_c);
+    statistics.total_combinations = main_pmap.comb_total;
+    if (!main_pmap.valid) {
+        printf("NOT VALID");
+        exit(1);
+    }
+
+    if (args->p_only){
+        for (int32_t i = 0; i < board->w * board->h; i++) {
+            if (!board->known[i]) {
+                statistics.p[i] = main_pmap.p_outside;
+                statistics.p2[i] = 0;
+                statistics.gini_impurity[i] = 0;
+                statistics.information_gain[i] = 0;
+            }
+            else {
+                statistics.p[i] = 0;
+                statistics.p2[i] = 0;
+                statistics.gini_impurity[i] = 0;
+                statistics.information_gain[i] = 0;
+            }
+        }
+        for (int32_t i = 0; i < border->border_unknown_c; i++) {
+            statistics.p[border->border_unknown[i]] = main_pmap.p_border_unknown[i];
+        }
     }
     else {
-        for (int32_t i = 0; i < border->border_unknown_c; i++)
-        {
-            initialize_intermediate(border_intermediates + i, border->outside_unknown_c, border->border_unknown_c);
-        }
-        get_intermediate(board, border, permutation_set, &main_intermediate, -1, border->outside_unknown_c);
-        get_probability(board, border, &main_intermediate, &statistics);
-    }
-    get_value(board, &statistics, alpha, beta);
+        double outside_p2, outside_gini_impurity, outside_information_gain;
+        get_pmap(board, border, permutation_set, &outside_pmap, -1, border->outside_unknown_c-1);
+        get_auxiliary_information(&outside_pmap, -1, &outside_p2, &outside_gini_impurity, &outside_information_gain);
 
+        for (int32_t i = 0; i < board->w * board->h; i++) {
+            if (!board->known[i]) {
+                statistics.p[i] = main_pmap.p_outside;
+                statistics.p2[i] = outside_p2;
+                statistics.gini_impurity[i] = outside_gini_impurity;
+                statistics.information_gain[i] = outside_information_gain;
+            }
+            else {
+                statistics.p[i] = 0;
+                statistics.p2[i] = 0;
+                statistics.gini_impurity[i] = 0;
+                statistics.information_gain[i] = 0; 
+            }
+        }
+        for (int32_t i = 0; i < border->border_unknown_c; i++) {
+            statistics.p[border->border_unknown[i]] = main_pmap.p_border_unknown[i];
+
+            if (main_pmap.p_border_unknown[i] == 0.0) {
+                border_pmaps[i] = main_pmap;
+            } else if (main_pmap.p_border_unknown[i] == 1.0){
+                border_pmaps[i].valid = false;
+            }
+            else{
+                get_pmap(board, border, permutation_set, border_pmaps + i, i, border->outside_unknown_c);
+            }
+            get_auxiliary_information(border_pmaps + i, i, statistics.p2 + border->border_unknown[i], 
+                                                           statistics.gini_impurity + border->border_unknown[i], 
+                                                           statistics.information_gain + border->border_unknown[i]);
+        }
+    }
+
+    get_value(board, &statistics, args->alpha, args->beta, args->eta);
 
     double best_p = 2;
     double best_value = -INFINITY;
@@ -549,8 +350,14 @@ BoardStatistics* get_statistics(Board* board, Border* border, PermutationSet* pe
             best_value_positions[best_value_c++] = i;
         }
     }
-    statistics.best_p = best_p_positions[rand() % best_p_c];
-    statistics.best_value = best_value_positions[rand() % best_value_c];
-
+    if (USE_RANDOM_STRATEGY) {
+        statistics.best_p = best_p_positions[rand() % best_p_c];
+        statistics.best_value = best_value_positions[rand() % best_value_c];
+    }
+    else {
+        statistics.best_p = best_p_positions[0];
+        statistics.best_value = best_value_positions[0];
+    }
+    
     return &statistics;
 }

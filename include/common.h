@@ -18,13 +18,31 @@
     _a < _b ? _a : _b;       \
 })
 
+// Priority and same value strategy
+#define PRIO_PERIMETER false
+#define PRIO_CORNER false
+#define PRIO_MANHATTAN false
+#define PRIO_CHEBYSHEV false
+#define PRIO_ADJACENT true
+
+#define USE_RANDOM_STRATEGY false
+
 #define DEBUG false
 #define MAX_PERMUTATIONS (16*1024*1024)
 #define MAX_MINES 256
 #define MAX_SQUARES 1024
 #define MAX_MINE_C_DIFF 18
-#define PERMUTATION_PARTS (MAX_BORDER_UNKNOWN / 64) // Longest possible border_unknown_c to be <= PERMUTATION_PARTS * 64
+#define MASK_PARTS (MAX_BORDER_UNKNOWN / 64)
 #define MAX_BORDER_UNKNOWN (3*64)
+
+typedef struct Arguments
+{
+    char board[2*MAX_SQUARES];
+    char output_file[512];
+    int32_t width, height, mines, test_games;
+    double alpha, beta, eta;
+    bool p_only;
+} Arguments;
 
 typedef struct Board {
     int32_t w;
@@ -46,40 +64,48 @@ typedef struct Border {
     int32_t outside_known_c;
 } Border;
 
-typedef struct Equation {
-    int32_t unknown[8]; // An entry here will be an index in border.border_unknown
-    int32_t unknown_c;
-    int32_t amount;
-} Equation;
-
-typedef struct EquationSet {
-    int32_t equation_c;
-    Equation* equations[MAX_SQUARES];
-    int32_t unknown_c;
-    int32_t solved[MAX_BORDER_UNKNOWN];
-    int32_t splits[MAX_BORDER_UNKNOWN];
-    int32_t split_c;
-} EquationSet;
+typedef struct Mask {
+    uint64_t v[MASK_PARTS];
+} Mask;
 
 typedef struct Permutation {
-    int32_t mine_c;
-    uint64_t mask[PERMUTATION_PARTS];
-    uint64_t mines[PERMUTATION_PARTS];
+    Mask mask;
+    Mask mines;
 } Permutation;
 
 typedef struct PermutationSet {
     Permutation solved_permutation;
+
+    Permutation permutations[MAX_PERMUTATIONS];
     int32_t permutation_c;
-    int32_t total_permutation_c;
+
     int32_t splits_length[MAX_BORDER_UNKNOWN];
     int32_t splits_start[MAX_BORDER_UNKNOWN];
     int32_t split_c;
-    Permutation permutations[MAX_PERMUTATIONS];
 } PermutationSet;
+
+typedef struct Equation {
+    Mask mask;
+    int32_t amount;
+} Equation;
+
+typedef struct EquationSet {
+    Equation equations[MAX_SQUARES];
+    int32_t equation_c;
+
+    int32_t border_unknown_c;
+
+    Permutation solved;
+
+    int32_t splits_length[MAX_BORDER_UNKNOWN];
+    int32_t splits_start[MAX_BORDER_UNKNOWN];
+    int32_t split_c;
+} EquationSet;
 
 typedef struct BoardStatistics {
     int32_t best_p;
     int32_t best_value;
+    double total_combinations;
 
     double p[MAX_SQUARES];
     double p2[MAX_SQUARES];
@@ -88,13 +114,38 @@ typedef struct BoardStatistics {
     double value[MAX_SQUARES];
 } BoardStatistics;
 
-typedef struct IntermediateStatistics {
+typedef struct ProbabilityMap {
     int32_t border_unknown_c;
     int32_t n;
     bool valid;
     double comb_total;
     double p_border_unknown[MAX_BORDER_UNKNOWN];
     double p_outside;
-} IntermediateStatistics;
+} ProbabilityMap;
+
+#define mask_overlap(mask1, mask2)              \
+({                                              \
+    uint64_t result = 0;                        \
+    for (int32_t i = 0; i < MASK_PARTS; i++) {  \
+        result |= (mask1).v[i] & (mask2).v[i];  \
+    }                                           \
+    ((bool) result);                            \
+})
+#define mask_count(mask)                            \
+({                                                  \
+    uint64_t result = 0;                            \
+    for (int32_t i = 0; i < MASK_PARTS; i++) {      \
+        result += __builtin_popcountll((mask).v[i]);\
+    }                                               \
+    result;                                         \
+})
+#define mask_reset(mask)                        \
+({                                              \
+    for (int32_t i = 0; i < MASK_PARTS; i++) {  \
+        (mask).v[i] = 0ULL;                     \
+    }                                           \
+})
+#define mask_get(mask, i) (((mask).v[((uint64_t)(i)) / 64ULL] >> (((uint64_t)(i)) % 64ULL)) & 1ULL)
+#define mask_set(mask, i, n) ((mask).v[((uint64_t)(i)) / 64ULL] |= ((uint64_t)(n)) << (((uint64_t)(i)) % 64ULL))
 
 #endif
