@@ -169,8 +169,10 @@ void get_auxiliary_information(ProbabilityMap* pmap, int32_t forced_i, double* p
         *gini_impurity += ((double)pmap->n) * gini(pmap->p_outside);
         *information_gain += ((double)pmap->n) * entropy(pmap->p_outside);
     }
-    *gini_impurity /= pmap->border_unknown_c + pmap->n;
-    *information_gain /= pmap->border_unknown_c + pmap->n;
+    if (USE_DIVIDE_AUXILLARY){
+        *gini_impurity /= pmap->border_unknown_c + pmap->n;
+        *information_gain /= pmap->border_unknown_c + pmap->n;
+    }
 }
 
 void get_value(Board* board, BoardStatistics* statistics, double alpha, double beta, double eta) {

@@ -26,6 +26,7 @@
 #define PRIO_ADJACENT true
 
 #define USE_RANDOM_STRATEGY false
+#define USE_DIVIDE_AUXILLARY false
 
 #define DEBUG false
 #define MAX_PERMUTATIONS (16*1024*1024)
