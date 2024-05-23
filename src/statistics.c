@@ -155,6 +155,8 @@ void get_auxiliary_information(ProbabilityMap* pmap, int32_t forced_i, double* p
     *gini_impurity = 0;
     *information_gain = 0;
     if (!pmap->valid) {
+        *gini_impurity = MAX_SQUARES;
+        *information_gain = MAX_SQUARES;
         return;
     }
     
