@@ -331,6 +331,7 @@ PermutationSet* get_permutations(Board* board, Border* border){
 
     split(&equation_set);
 
+
     permutation_set.solved_permutation = equation_set.solved;
     permutations_of_splits(&equation_set, &permutation_set);
 

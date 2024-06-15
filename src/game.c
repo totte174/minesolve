@@ -109,13 +109,16 @@ bool play_game(Arguments* args) {
 
         BoardStatistics* statistics = get_statistics(&board, &border, perm_set, args);
 
-        //print_board(&board);
-        //print_permutation_set(perm_set, border.border_unknown_c);
+        if (board.mines[statistics->best_value] && !first_move) {
         //print_statistics(&board, statistics, true, false, false, false, false);
+        //print_board(&board);
+        //printf("Unknown left: %d\n", board.unknown_c);
+        //print_permutation_set(perm_set, border.border_unknown_c);
         //print_statistics(&board, statistics, true, true, true, true, true);
-        //printf("Best move: (%d,%d), p=%f\n", statistics->best_value % w, statistics->best_value / w, statistics->p[statistics->best_value]);
+        //printf("Best move: %d or (%d,%d), p=%f\n", statistics->best_value, statistics->best_value % args->width, statistics->best_value / args->width, statistics->p[statistics->best_value]);
         //char s[2];
         //fgets(s, 2, stdin);
+        }
 
         if (board.known[statistics->best_value]){
             printf("BEST VALUE IS KNOWN\n");
@@ -126,7 +129,8 @@ bool play_game(Arguments* args) {
             for (int32_t i = 0; i < board.w * board.h; i++) {
                 if (statistics->p[i] == 0 && !board.known[i]) {
                     if (!move(&board, i, first_move)) {
-                        return false;
+                        printf("MINE WHERE P=0\n");
+                        exit(1);
                     }
                     first_move = false;
                 }

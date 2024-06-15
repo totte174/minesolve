@@ -116,7 +116,7 @@ int32_t main(int32_t argc, char** argv)
         .width = 30,
         .height = 16,
         .mines = 99,
-        .test_games = 10000000, //0
+        .test_games = 100000, //0
         .alpha = 0,
         .beta = 0,
         .eta = 0,

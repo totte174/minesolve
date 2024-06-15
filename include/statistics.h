@@ -10,6 +10,7 @@
 
 #include "permutations.h"
 #include "common.h"
+#include "board.h"
 
 double gini(double p);
 double entropy(double p);

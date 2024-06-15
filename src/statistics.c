@@ -34,7 +34,8 @@ void initialize_pmap(ProbabilityMap* pmap, int32_t n, int32_t border_unknown_c) 
 }
 
 void get_pmap(Board* board, Border* border, PermutationSet* permutation_set,
-                      ProbabilityMap* pmap, int32_t forced_i, int32_t n) {
+              ProbabilityMap* pmap, int32_t* forced_zero, int32_t forced_c, 
+              int32_t n) {
     static int32_t split_mine_c_min[MAX_BORDER_UNKNOWN];
     static int32_t split_mine_c_max[MAX_BORDER_UNKNOWN];
     if (n < 0) { 
@@ -51,7 +52,11 @@ void get_pmap(Board* board, Border* border, PermutationSet* permutation_set,
         split_mine_c_max[split_i] = 0;
         for (int32_t i = 0; i < permutation_set->splits_length[split_i]; i++){
             Permutation* perm = permutation_set->permutations + permutation_set->splits_start[split_i] + i;
-            if (forced_i >= 0 && mask_get(perm->mines, forced_i)) continue;
+            bool forced_skip = false;
+            for (int32_t j = 0; j < forced_c; j++) {
+                if (mask_get(perm->mines, forced_zero[j])) forced_skip = true;
+            }
+            if (forced_skip) continue;
             split_mine_c_min[split_i] = min(split_mine_c_min[split_i], mine_c(perm));
             split_mine_c_max[split_i] = max(split_mine_c_max[split_i], mine_c(perm));
         }
@@ -83,7 +88,11 @@ void get_pmap(Board* board, Border* border, PermutationSet* permutation_set,
 
         for (int32_t i = 0; i < permutation_set->splits_length[split_i]; i++) {
             Permutation* perm = permutation_set->permutations + permutation_set->splits_start[split_i] + i;
-            if (forced_i >= 0 && mask_get(perm->mines, forced_i)) continue;
+            bool forced_skip = false;
+            for (int32_t j = 0; j < forced_c; j++) {
+                if (mask_get(perm->mines, forced_zero[j])) forced_skip = true;
+            }
+            if (forced_skip) continue;
 
             int32_t rel_mine_c = mine_c(perm) - split_mine_c_min[split_i];
             split_rel_mine_c_total_combs[rel_mine_c] += 1;
@@ -259,109 +268,161 @@ void print_statistics(Board* board, BoardStatistics* statistics, bool p, bool p2
 
 }
 
+double mcts(Board* board, Border* border, PermutationSet* permutation_set,
+             int32_t* forced_zero, int32_t forced_c, double best_value, int32_t n,
+             int32_t iter, int32_t max_iter, double cur_value){
+    if (iter >= max_iter) return cur_value;
+    ProbabilityMap pmap;
+    get_pmap(board, border, permutation_set, &pmap, forced_zero, forced_c, n);
+    if (!pmap.valid) return 1.0;
+
+    int32_t sorted_border_unknown[MAX_BORDER_UNKNOWN];
+    for (int32_t i = 0; i < border->border_unknown_c; i++) sorted_border_unknown[i] = i;
+    for (int32_t i = 0; i < border->border_unknown_c-1; i++){
+        int j_min = i;
+        for (int32_t j = i+1; j < border->border_unknown_c; j++){
+            if (pmap.p_border_unknown[sorted_border_unknown[j]] < pmap.p_border_unknown[sorted_border_unknown[j_min]]) j_min = j;
+        }
+        if (j_min != i){
+            int32_t temp = sorted_border_unknown[i];
+            sorted_border_unknown[i] = sorted_border_unknown[j_min];
+            sorted_border_unknown[j_min] = temp;
+        }
+    }
+
+    for (int32_t i_ = 0; i_ < border->border_unknown_c; i_++) {
+        int32_t i = sorted_border_unknown[i_];
+        bool forced_skip = false;
+        for (int32_t j = 0; j < forced_c; j++) {
+            if (forced_zero[j] == i) forced_skip = true;
+        }
+        if (forced_skip) continue;
+
+        double next_value = 1.0 - (1.0 - pmap.p_border_unknown[i] * pow(PARAM, ((double)iter) / ((double) (max_iter - 1)))) * (1.0 - cur_value);
+        if (pmap.p_border_unknown[i] >= best_value) break;
+
+        forced_zero[forced_c] = i;
+        double value = mcts(board, border, permutation_set, 
+                                      forced_zero, forced_c + 1, best_value, n,
+                                      iter + 1, max_iter, next_value);
+
+        best_value = min(best_value, value);
+    }
+
+    double next_value = 1.0 - (1.0 - pmap.p_outside * pow(PARAM, ((double)iter) / ((double) (max_iter - 1)))) * (1.0 - cur_value);
+    if (!(next_value >= best_value)){
+        double value = mcts(board, border, permutation_set, 
+                                      forced_zero, forced_c, best_value, n-1,
+                                      iter + 1, max_iter, next_value);
+
+        best_value = min(best_value, value);
+    }
+    return best_value;
+}
+
 BoardStatistics* get_statistics(Board* board, Border* border, PermutationSet* permutation_set, Arguments* args) {
     static BoardStatistics statistics;
     static ProbabilityMap main_pmap;
-    static ProbabilityMap outside_pmap;
-    static ProbabilityMap border_pmaps[MAX_BORDER_UNKNOWN];
+    static int32_t forced_zero[MAX_BORDER_UNKNOWN];
 
-    get_pmap(board, border, permutation_set, &main_pmap, -1, border->outside_unknown_c);
+    int32_t n = border->outside_unknown_c;
+    get_pmap(board, border, permutation_set, &main_pmap, forced_zero, 0, n);
     statistics.total_combinations = main_pmap.comb_total;
     if (!main_pmap.valid) {
         printf("NOT VALID");
         exit(1);
     }
-
-    if (args->p_only){
-        for (int32_t i = 0; i < board->w * board->h; i++) {
-            if (!board->known[i]) {
-                statistics.p[i] = main_pmap.p_outside;
-                statistics.p2[i] = 0;
-                statistics.gini_impurity[i] = 0;
-                statistics.information_gain[i] = 0;
-            }
-            else {
-                statistics.p[i] = 0;
-                statistics.p2[i] = 0;
-                statistics.gini_impurity[i] = 0;
-                statistics.information_gain[i] = 0;
-            }
+    for (int32_t i = 0; i < board->w * board->h; i++) {
+        if (!board->known[i]) {
+            statistics.p[i] = main_pmap.p_outside;
         }
-        for (int32_t i = 0; i < border->border_unknown_c; i++) {
-            statistics.p[border->border_unknown[i]] = main_pmap.p_border_unknown[i];
+        else {
+            statistics.p[i] = 0;
         }
     }
-    else {
-        double outside_p2, outside_gini_impurity, outside_information_gain;
-        get_pmap(board, border, permutation_set, &outside_pmap, -1, border->outside_unknown_c-1);
-        get_auxiliary_information(&outside_pmap, -1, &outside_p2, &outside_gini_impurity, &outside_information_gain);
-
-        for (int32_t i = 0; i < board->w * board->h; i++) {
-            if (!board->known[i]) {
-                statistics.p[i] = main_pmap.p_outside;
-                statistics.p2[i] = outside_p2;
-                statistics.gini_impurity[i] = outside_gini_impurity;
-                statistics.information_gain[i] = outside_information_gain;
-            }
-            else {
-                statistics.p[i] = 0;
-                statistics.p2[i] = 0;
-                statistics.gini_impurity[i] = 0;
-                statistics.information_gain[i] = 0; 
-            }
-        }
-        for (int32_t i = 0; i < border->border_unknown_c; i++) {
-            statistics.p[border->border_unknown[i]] = main_pmap.p_border_unknown[i];
-
-            if (main_pmap.p_border_unknown[i] == 0.0) {
-                border_pmaps[i] = main_pmap;
-            } else if (main_pmap.p_border_unknown[i] == 1.0){
-                border_pmaps[i].valid = false;
-            }
-            else{
-                get_pmap(board, border, permutation_set, border_pmaps + i, i, border->outside_unknown_c);
-            }
-            get_auxiliary_information(border_pmaps + i, i, statistics.p2 + border->border_unknown[i], 
-                                                           statistics.gini_impurity + border->border_unknown[i], 
-                                                           statistics.information_gain + border->border_unknown[i]);
-        }
+    for (int32_t i = 0; i < border->border_unknown_c; i++) {
+        statistics.p[border->border_unknown[i]] = main_pmap.p_border_unknown[i];
     }
-
-    get_value(board, &statistics, args->alpha, args->beta, args->eta);
-
     double best_p = 2;
-    double best_value = -INFINITY;
-    int32_t best_p_positions[MAX_SQUARES];
-    int32_t best_value_positions[MAX_SQUARES];
-    int32_t best_p_c = 0;
-    int32_t best_value_c = 0;
-
     for (int32_t i = 0; i < board->w*board->h; i++) {
         if (statistics.p[i] < best_p && !board->known[i]) {
             best_p = statistics.p[i];
-            best_p_positions[0] = i;
-            best_p_c = 1;
-        }
-        else if (statistics.p[i] == best_p && !board->known[i]) {
-            best_p_positions[best_p_c++] = i;
-        }
-        if (statistics.value[i] > best_value && !board->known[i]) {
-            best_value = statistics.value[i];
-            best_value_positions[0] = i;
-            best_value_c = 1;
-        }
-        else if (statistics.value[i] == best_value && !board->known[i]) {
-            best_value_positions[best_value_c++] = i;
+            statistics.best_p = i;
         }
     }
-    if (USE_RANDOM_STRATEGY) {
-        statistics.best_p = best_p_positions[rand() % best_p_c];
-        statistics.best_value = best_value_positions[rand() % best_value_c];
+
+    int32_t sorted_border_unknown[MAX_BORDER_UNKNOWN];
+    for (int32_t i = 0; i < border->border_unknown_c; i++) sorted_border_unknown[i] = i;
+    for (int32_t i = 0; i < border->border_unknown_c-1; i++){
+        int j_min = i;
+        for (int32_t j = i+1; j < border->border_unknown_c; j++){
+            if (main_pmap.p_border_unknown[sorted_border_unknown[j]] < main_pmap.p_border_unknown[sorted_border_unknown[j_min]]) j_min = j;
+        }
+        if (j_min != i){
+            int32_t temp = sorted_border_unknown[i];
+            sorted_border_unknown[i] = sorted_border_unknown[j_min];
+            sorted_border_unknown[j_min] = temp;
+        }
     }
-    else {
-        statistics.best_p = best_p_positions[0];
-        statistics.best_value = best_value_positions[0];
+
+    double best_value = 1;
+    double best_value_comb = 1;
+    double best_value_pos = -1;
+    for (int32_t i_ = 0; i_ < border->border_unknown_c; i_++) {
+        int32_t i = sorted_border_unknown[i_];
+        if (main_pmap.p_border_unknown[i] >= best_value) break;
+        if (main_pmap.p_border_unknown[i] == 0.0) {
+            best_value = 0;
+            best_value_pos = border->border_unknown[i];
+            break;
+        }
+
+        forced_zero[0] = i;
+        double value = mcts(board, border, permutation_set, 
+                            forced_zero, 1, best_value, n,
+                            1, min(board->unknown_c - board->mine_c, MAX_ITER), main_pmap.p_border_unknown[i]);
+        double value_comb = (1.0 - PARAM2) * main_pmap.p_border_unknown[i] + PARAM2 * value;
+        best_value = min(value, best_value);
+
+        if (value_comb < best_value_comb) {
+            best_value_comb = value_comb;
+            best_value_pos = border->border_unknown[i];
+        }
     }
+
+    if (main_pmap.p_outside < best_value && n > 0){
+        double value = mcts(board, border, permutation_set, 
+                            forced_zero, 0, best_value, n-1,
+                            1, min(board->unknown_c - board->mine_c, MAX_ITER), main_pmap.p_outside);
+        double value_comb = (1.0 - PARAM2) * main_pmap.p_outside + PARAM2 * value;
+
+        if (value_comb < best_value_comb) {
+            best_value_comb = value_comb;
+            best_value_pos = -2;
+        }
+    }
+
+    if (best_value_pos == -1) {
+        printf("best_value_pos == -1\n");
+        exit(1);
+    }
+
+    int32_t lowest_adjacent_unknown = 9;
+    if (best_value_pos < 0) {
+        //printf("best_value_pos == -2\n");
+        for (int32_t i = 0; i < board->w*board->h; i++) {
+            int32_t adj[8];
+            int32_t adj_unknown_c = get_adjacent_unknown(board, i, adj);
+            if ((!board->known[i]) && (!is_border_unknown(board, i) && adj_unknown_c < lowest_adjacent_unknown)){
+                //printf("%d fulfils conditions %d, %d :)\n", i, !(board->known[i]), (!is_border_unknown(board, i)));
+                best_value_pos = i;
+                lowest_adjacent_unknown = adj_unknown_c;
+            }
+        }
+    }
+
     
+    statistics.best_value = best_value_pos;
+
     return &statistics;
 }

@@ -35,6 +35,9 @@
 #define MAX_MINE_C_DIFF 18
 #define MASK_PARTS (MAX_BORDER_UNKNOWN / 64)
 #define MAX_BORDER_UNKNOWN (3*64)
+#define MAX_ITER 4
+#define PARAM 1.00
+#define PARAM2 0.75
 
 typedef struct Arguments
 {
