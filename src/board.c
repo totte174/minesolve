@@ -55,41 +55,6 @@ bool is_border_known(Board* board, int32_t p) {
     return false;
 }
 
-void get_border(Board* board, Border* border) {
-    border->border_known_c = 0;
-    border->border_unknown_c = 0;
-    border->outside_known_c = 0;
-    border->outside_unknown_c = 0;
-    for (int32_t p = 0; p < board->w * board->h; p++) {
-        if (!board->known[p]) {
-            if (is_border_unknown(board, p)) {
-                border->border_unknown[border->border_unknown_c++] = p;
-            }
-            else {
-                border->outside_unknown_c++;
-            }
-        }
-        else {
-            if (is_border_known(board, p)) {
-                border->border_known[border->border_known_c++] = p;
-            }
-            else {
-                border->outside_known_c++;
-            }
-        }
-    }
-}
-
-bool is_on_perimeter(Board* board, int32_t p) {
-    return (p / board->w == 0 || p / board->w == board->h - 1 || // is top or bottom
-            p % board->w == 0 || p % board->w == board->w - 1);  // Left or right
-}
-
-bool is_on_corner(Board* board, int32_t p) {
-    return (p / board->w == 0 || p / board->w == board->h - 1) && // is top or bottom
-           (p % board->w == 0 || p % board->w == board->w - 1);  // Left or right
-}
-
 void print_board(Board* board) {
     printf("+");
     for (int32_t x = 0; x < board->w; x++) printf("-");

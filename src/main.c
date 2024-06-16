@@ -9,7 +9,6 @@
 
 #include "permutations.h"
 #include "board.h"
-#include "statistics.h"
 #include "game.h"
 #include "common.h"
 
