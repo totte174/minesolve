@@ -24,7 +24,6 @@
 #define MAX_MINE_C_DIFF 18
 #define MASK_PARTS (MAX_EDGE_SIZE / 64)
 #define MAX_EDGE_SIZE (3*64)
-#define MAX_SEARCH_DEPTH 3
 #define MIN_PERMUTATIONS (2ULL << 18ULL)
 #define MAX_PERMUTATIONS (2ULL << 26ULL)
 
@@ -32,8 +31,8 @@ typedef struct Arguments
 {
     char board[2*MAX_SQUARES];
     char output_file[512];
-    int32_t width, height, mines, test_games;
-    double alpha, beta, eta;
+    int32_t width, height, mines, test_games, max_depth, min_brute;
+    double alpha;
     bool p_only;
 } Arguments;
 

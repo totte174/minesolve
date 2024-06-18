@@ -1,7 +1,7 @@
 #include "solver.h"
 
-double tree_search(Board* board, int32_t next_move, int32_t max_depth, double cur_p, double cur_best_p) {
-    if (max_depth <= 0) return cur_p;
+double tree_search(Board* board, int32_t next_move, int32_t max_depth) {
+    if (max_depth <= 0) return 0.0;
     if (next_move < 0) return 1.0;
 
     Edge edge;
@@ -14,7 +14,7 @@ double tree_search(Board* board, int32_t next_move, int32_t max_depth, double cu
     double combs_v[9];
     for (int32_t v = 0; v < 9; v++) {
         new_board.v[next_move] = v;
-        double best_p = cur_best_p;
+        double best_p = 1.0;
 
         get_permutation_set(&new_board, &edge, &permutation_set, &pmap);
         get_pmap(&new_board, &edge, &permutation_set, &pmap);
@@ -39,24 +39,23 @@ double tree_search(Board* board, int32_t next_move, int32_t max_depth, double cu
             }
         }
 
+        bool any_solved0 = false;
         for(int32_t i = 0; i < edge.edge_solved_c; i++) {
             if (pmap.p_solved[i] == 0.0) {
-                best_p = min(best_p, tree_search(&new_board, edge.edge_solved[i], max_depth-1, cur_p, best_p));
+                any_solved0 = true;
+                best_p = min(best_p, tree_search(&new_board, edge.edge_solved[i], max_depth-1));
             }
         }
-        for(int32_t i_ = 0; i_ < edge.edge_c; i_++) {
-            int32_t i = sorted_edge[i_];
+        if (!any_solved0) {
+            for(int32_t i_ = 0; i_ < edge.edge_c; i_++) {
+                int32_t i = sorted_edge[i_];
+                if (pmap.p_edge[i] >= best_p) break;
+                double next_p = 1 - (1 - pmap.p_edge[i]) * (1 - tree_search(&new_board, edge.edge[i], max_depth-1));
+                best_p = min(best_p, next_p);
+            }
+            if (pmap.p_exterior < best_p && edge.exterior_c > 0) {
 
-            double next_p = 1 - (1 - cur_p) * (1 - pmap.p_edge[i]);
-            if (next_p >= best_p) break;
-
-            best_p = min(best_p, tree_search(&new_board, edge.edge[i], max_depth-1, next_p, best_p));
-        }
-        if (edge.exterior_c > 0) {
-            double next_p = 1 - (1 - cur_p) * (1 - pmap.p_exterior);
-            if (next_p < best_p) {
-
-                //Find exterior point with lowest surrounding adjacent unknown (usually corners)
+                //Find the exterior point with lowest adjacent unknown (usually corners)
                 int32_t best_exterior = -1;
                 int32_t lowest_adjacent_unknown = 9;
                 int32_t adj[8];
@@ -67,8 +66,8 @@ double tree_search(Board* board, int32_t next_move, int32_t max_depth, double cu
                         best_exterior = edge.exterior[i];
                     }
                 }
-                
-                best_p = min(best_p, tree_search(&new_board, best_exterior, max_depth-1, next_p, best_p));
+                double next_p = 1 - (1 - pmap.p_exterior) * (1 - tree_search(&new_board, best_exterior, max_depth-1));
+                best_p = min(best_p, next_p);
             }
         }
         
@@ -82,7 +81,6 @@ double tree_search(Board* board, int32_t next_move, int32_t max_depth, double cu
         avg_p += p_v[v] * combs_v[v];
         total_combs += combs_v[v];
     }
-    if (total_combs == 0) return 1.0;
     avg_p /= total_combs;
     return avg_p;
 }
@@ -130,7 +128,15 @@ void get_solver_result(Board* board, Arguments* args, SolverResult* solver_resul
     //printf("solved_c: %d\n", edge.edge_solved_c);
     //printf("exterior_c: %d\n", edge.exterior_c);
 
-    int32_t max_depth = min(MAX_SEARCH_DEPTH, board->unknown_c - board->mine_c);
+    int32_t safe_sqs_left = board->unknown_c - board->mine_c;
+    int32_t max_depth;
+
+    if (safe_sqs_left <= args->min_brute) {
+        max_depth = safe_sqs_left;
+    }
+    else {
+        max_depth = min(args->max_depth, safe_sqs_left);
+    }
 
     double best_p = 1.00001;
     solver_result->best_search = -1;
@@ -144,15 +150,15 @@ void get_solver_result(Board* board, Arguments* args, SolverResult* solver_resul
     for(int32_t i_ = 0; i_ < edge.edge_c; i_++) {
         int32_t i = sorted_edge[i_];
         if (pmap.p_edge[i] >= best_p) break;
-        double new_p = tree_search(board, edge.edge[i], max_depth - 1, pmap.p_edge[i], best_p);
-        if(new_p < best_p) {
-            best_p = new_p;
+        double next_p = 1 - (1 - pmap.p_edge[i]) * (1 - tree_search(board, edge.edge[i], max_depth - 1));
+        if(next_p < best_p) {
+            best_p = next_p;
             solver_result->best_search = edge.edge[i];
         }
     }
     if (pmap.p_exterior < best_p && edge.exterior_c > 0) {
 
-        //Find exterior point with lowest surrounding adjacent unknown (usually corners)
+        //Find the exterior point with lowest adjacent unknown (usually corners)
         int32_t best_exterior = -1;
         int32_t lowest_adjacent_unknown = 9;
         int32_t adj[8];
@@ -163,10 +169,10 @@ void get_solver_result(Board* board, Arguments* args, SolverResult* solver_resul
                 best_exterior = edge.exterior[i];
             }
         }
-        
-        double new_p = tree_search(board, best_exterior, max_depth - 1, pmap.p_exterior, best_p);
-        if(new_p < best_p) {
-            best_p = new_p;
+
+        double next_p = 1 - (1 - pmap.p_exterior) * (1 - tree_search(board, best_exterior, max_depth - 1));
+        if(next_p < best_p) {
+            best_p = next_p;
             solver_result->best_search = best_exterior;
         }
     }

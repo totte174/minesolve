@@ -23,10 +23,10 @@ static struct argp_option options[] = {
     {"width", 'w', "WIDTH", 0, "Width of minesweeper board"},
     {"height", 'h', "HEIGHT", 0, "Height of minesweeper board"},
     {"mines", 'm', "MINES", 0, "Number of mines present in minesweeper board"},
-    {"diff", 'd', "DIFFICULTY", 0, "Use preset for width, height and number of mines: beginner, intermediate, or expert."},
-    {"alpha", 'a', "ALPHA", 0, "Alpha parameter to use with solver."},
-    {"beta", 'b', "BETA", 0, "Beta parameter to use with solver."},
-    {"eta", 'e', "ETA", 0, "Eta parameter to use with solver."},
+    {"config", 'c', "CONFIGURATION", 0, "Use preset configuration for width, height and number of mines: beginner, intermediate, or expert."},
+    {"alpha", 'a', "ALPHA", 0, "Alpha parameter to use with solver. (Unused right now)"},
+    {"max_depth", 'd', "MAX_DEPTH", 0, "Maximum depth for solver to search."},
+    {"min_brute", 'b', "MIN_BRUTE", 0, "Minimum amount of safe squares left for solver to enter brute force mode."},
     {"test", 't', "NUM", 0, "Let solver play NUM games and output the number of wins."},
     {"p_only", 'p', 0, 0, "Only use probability for determining value "},
     {0}};
@@ -53,7 +53,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         arguments->mines = atoi(arg);
         if (arguments->mines == 0) argp_usage(state);
         break;
-    case 'd':
+    case 'c':
         if (strcasecmp(arg, "expert")) {
             arguments->width = 30;
             arguments->height = 16;
@@ -74,11 +74,11 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     case 'a':
         arguments->alpha = strtod(arg, NULL);
         break;
-    case 'b':
-        arguments->beta = strtod(arg, NULL);
+    case 'd':
+        arguments->max_depth = atoi(arg);
         break;
-    case 'e':
-        arguments->eta = strtod(arg, NULL);
+    case 'b':
+        arguments->min_brute = atoi(arg);
         break;
     case 't':
         arguments->test_games = atoi(arg);
@@ -115,15 +115,15 @@ int32_t main(int32_t argc, char** argv)
         .width = 30,
         .height = 16,
         .mines = 99,
-        .test_games = 100000, //0
+        .test_games = 10000000, //0
         .alpha = 0,
-        .beta = 0,
-        .eta = 0,
+        .max_depth = 1,
+        .min_brute = 0,
         .output_file = "",
         .p_only = false,
     };
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
-    if (arguments.alpha == 0 && arguments.beta == 0 && arguments.eta == 0) arguments.p_only = true;
+    if (arguments.alpha == 0) arguments.p_only = true;
 
     int32_t wins = 0;
     for (int32_t i = 0; i < arguments.test_games; i++)

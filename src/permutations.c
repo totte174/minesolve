@@ -57,7 +57,8 @@ void join_new_permutations(PermutationSet* permutation_set, Mask* mask1, Mask* m
         for (int32_t j = 0; j < new_permutations_c; j++) {
             if (permutation_set->permutation_c + permutation_c == permutation_set->permutation_size) {
                 if (permutation_set->permutation_size >= MAX_PERMUTATIONS) { //Quick fix so it doesn't consume ginormouz amounts of RAM
-                    printf("OUTOFMEM\n");
+                    //printf("OUTOFMEM\n");
+                    permutation_set->splits_length[split_i] = permutation_c;
                     free(temp_permutations);
                     return;
                 }

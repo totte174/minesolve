@@ -179,12 +179,10 @@ bool remove_subequations(EquationSet* equation_set) {
 
 void reduce(EquationSet* equation_set) {
     bool any_changed = true;
-    int32_t iterations = 0;
     while (any_changed) {
         any_changed = false;
         any_changed |= remove_subequations(equation_set);
         any_changed |= remove_solved(equation_set);
-        iterations++;
     }
 }
 
