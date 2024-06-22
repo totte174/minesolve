@@ -1,13 +1,18 @@
 CC := gcc
 SRCDIR := src
 BUILDDIR := build
-TARGET := bin/run
+BIN := bin
+TARGET := $(BIN)/run
 SRCEXT := c
 SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
 CFLAGS := -Wall -O3
 DEBUGFLAGS := -Wall -g
 INC := -I include -lm
+
+$(shell if ! [ -e $(BIN) ]; then\
+	mkdir $(BIN);\
+fi;)
 
 $(TARGET): $(OBJECTS)
 	@echo " Linking..."
