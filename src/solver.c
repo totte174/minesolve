@@ -1,183 +1,241 @@
 #include "solver.h"
 
-double tree_search(Board* board, int32_t next_move, int32_t max_depth) {
-    if (max_depth <= 0) return 0.0;
-    if (next_move < 0) return 1.0;
+#ifdef TRANSPOSITION_TABLE
+static TranspositionTable transposition_table;
 
-    Edge edge;
-    PermutationSet permutation_set;
-    ProbabilityMap pmap;
-    Board new_board = *board;
-    new_board.known[next_move] = true;
-    
-    double p_v[9];
-    double combs_v[9];
-    for (int32_t v = 0; v < 9; v++) {
-        new_board.v[next_move] = v;
-        double best_p = 1.0;
-
-        get_permutation_set(&new_board, &edge, &permutation_set, &pmap);
-        get_pmap(&new_board, &edge, &permutation_set, &pmap);
-        destroy_permutations(&permutation_set);
-        if (!pmap.valid) {
-            combs_v[v] = 0;
-            continue;
-        }
-
-        // Sort by probability
-        int32_t sorted_edge[MAX_EDGE_SIZE];
-        for (int32_t i = 0; i < edge.edge_c; i++) sorted_edge[i] = i;
-        for (int32_t i = 0; i < edge.edge_c-1; i++){
-            int j_min = i;
-            for (int32_t j = i+1; j < edge.edge_c; j++){
-                if (pmap.p_edge[sorted_edge[j]] < pmap.p_edge[sorted_edge[j_min]]) j_min = j;
-            }
-            if (j_min != i){
-                int32_t temp = sorted_edge[i];
-                sorted_edge[i] = sorted_edge[j_min];
-                sorted_edge[j_min] = temp;
-            }
-        }
-
-        bool any_solved0 = false;
-        for(int32_t i = 0; i < edge.edge_solved_c; i++) {
-            if (pmap.p_solved[i] == 0.0) {
-                any_solved0 = true;
-                best_p = min(best_p, tree_search(&new_board, edge.edge_solved[i], max_depth-1));
-            }
-        }
-        if (!any_solved0) {
-            for(int32_t i_ = 0; i_ < edge.edge_c; i_++) {
-                int32_t i = sorted_edge[i_];
-                if (pmap.p_edge[i] >= best_p) break;
-                double next_p = 1 - (1 - pmap.p_edge[i]) * (1 - tree_search(&new_board, edge.edge[i], max_depth-1));
-                best_p = min(best_p, next_p);
-            }
-            if (pmap.p_exterior < best_p && edge.exterior_c > 0) {
-
-                //Find the exterior point with lowest adjacent unknown (usually corners)
-                int32_t best_exterior = -1;
-                int32_t lowest_adjacent_unknown = 9;
-                int32_t adj[8];
-                for (int32_t i = 0; i < edge.exterior_c; i++) {
-                    int32_t adj_c = get_adjacent_unknown(&new_board, edge.exterior[i], adj);
-                    if (adj_c < lowest_adjacent_unknown) {
-                        lowest_adjacent_unknown = adj_c;
-                        best_exterior = edge.exterior[i];
-                    }
-                }
-                double next_p = 1 - (1 - pmap.p_exterior) * (1 - tree_search(&new_board, best_exterior, max_depth-1));
-                best_p = min(best_p, next_p);
-            }
-        }
-        
-        p_v[v] = best_p;
-        combs_v[v] = pmap.comb_total;
-    }
-    
-    double total_combs = 0;
-    double avg_p = 0.0;
-    for (int32_t v = 0; v < 9; v++) {
-        avg_p += p_v[v] * combs_v[v];
-        total_combs += combs_v[v];
-    }
-    avg_p /= total_combs;
-    return avg_p;
+void transposition_table_init() {
+    for (int32_t i = 0; i < HASHTABLE_SIZE; i++) {
+        transposition_table.buckets[i] = -1;
+    }    
+    transposition_table.allocated_size = 4096;
+    transposition_table.current_size = 0;
+    transposition_table.allocated_entries = malloc(4096 * sizeof(TranspositionTableEntry));
 }
 
-void print_probability(Board* board, SolverResult* solver_result) {
-    for (int32_t y = 0; y < board->h; y++) {
-        for (int32_t x = 0; x < board->w; x++) {
-            if (board->known[y*board->w + x]) printf("      ");
-            else printf("%.3f ", solver_result->p[y*board->w + x]);
-        }
-        printf("\n");
-    }
+void transposition_table_deinit() {
+    free(transposition_table.allocated_entries);
 }
 
-void get_solver_result(Board* board, Arguments* args, SolverResult* solver_result) {
-    static Edge edge;
-    static PermutationSet permutation_set;
-    static ProbabilityMap pmap;
-    solver_result->valid = true;
+int32_t solver_search_state_hash(SolverSearchState* state) {
+    int32_t hash = 0;
+    for (int32_t i = 0; i < state->search_depth; i++) {
+        hash = (HASH_R * hash + state->prev_positions[i]) % HASHTABLE_SIZE;
+        hash = (HASH_R * hash + state->prev_val[i]) % HASHTABLE_SIZE;
+    }
+    return hash;
+}
 
-    get_permutation_set(board, &edge, &permutation_set, &pmap);
-    get_pmap(board, &edge, &permutation_set, &pmap);
-    destroy_permutations(&permutation_set);
-    solver_result->best_1step = pmap_to_board(board, &edge, &pmap, solver_result->p);
-    if (!pmap.valid) {
-        solver_result->valid = false;
+TranspositionTableEntry* transposition_table_get_recursive(SolverSearchState* state, 
+                                                           TranspositionTableEntry* entry) {
+    bool is_entry = true;
+    if (entry->state.search_depth != state->search_depth) is_entry = false;
+    for (int32_t j = 0; j < entry->state.search_depth; j++) {
+        if (entry->state.prev_positions[j] != state->prev_positions[j]) is_entry = false;
+        if (entry->state.prev_val[j] != state->prev_val[j]) is_entry = false;
+    }
+    if (is_entry) return entry;
+    if (entry->next == -1) return NULL;
+    return transposition_table_get_recursive(state, transposition_table.allocated_entries + entry->next);
+}
+
+TranspositionTableEntry* transposition_table_get(SolverSearchState* state) {
+    int32_t hash = solver_search_state_hash(state);
+    if (transposition_table.buckets[hash] == -1) return NULL;
+    return transposition_table_get_recursive(state, transposition_table.allocated_entries + transposition_table.buckets[hash]);
+}
+
+void transposition_table_set(TranspositionTableEntry* new_entry) {
+    if (transposition_table.allocated_size == transposition_table.current_size) {
+        transposition_table.allocated_size = transposition_table.allocated_size << 1;
+        transposition_table.allocated_entries = realloc(transposition_table.allocated_entries, transposition_table.allocated_size * sizeof(TranspositionTableEntry));
+    }
+
+    int32_t hash = solver_search_state_hash(&new_entry->state);
+    if (transposition_table.buckets[hash] == -1) {
+        TranspositionTableEntry* entry = transposition_table.allocated_entries + transposition_table.current_size;
+        transposition_table.buckets[hash] = transposition_table.current_size;
+        transposition_table.current_size++;
+        *entry = *new_entry;
+        entry->next = -1;
+    }
+    else {
+        TranspositionTableEntry* prev_entry = transposition_table.allocated_entries + transposition_table.buckets[hash];
+        while (prev_entry->next != -1) {
+            prev_entry = transposition_table.allocated_entries + prev_entry->next;
+        }
+        TranspositionTableEntry* entry = transposition_table.allocated_entries + transposition_table.current_size;
+        prev_entry->next = transposition_table.current_size;
+        transposition_table.current_size++;
+        *entry = *new_entry;
+        entry->next = -1;
+    }
+}
+#endif
+
+void state_add_position(SolverSearchState* state, int32_t pos, int32_t val) {
+    // Add position to state while keeping list sorted
+    int32_t temp_pos, temp_val;
+    for (int32_t i = 0; i < state->search_depth; i++) {
+        if (state->prev_positions[i] > pos) {
+            temp_pos = pos;
+            temp_val = val;
+            pos = state->prev_positions[i];
+            val = state->prev_val[i];
+            state->prev_positions[i] = temp_pos;
+            state->prev_val[i] = temp_val;
+        }
+    }
+    state->prev_positions[state->search_depth] = pos;
+    state->prev_val[state->search_depth] = val;
+    state->search_depth++;
+}
+
+void tree_search(Board* board, SolverSearchState* state,
+                 int32_t max_depth, SearchResult* result) {
+    // This shouldn't happen
+    if (state->search_depth >= max_depth) {
+        result->total_combinations = 1;
+        result->p = 0.0;
         return;
     }
 
-    int32_t sorted_edge[MAX_EDGE_SIZE];
-    for (int32_t i = 0; i < edge.edge_c; i++) sorted_edge[i] = i;
-    for (int32_t i = 0; i < edge.edge_c-1; i++){
-        int j_min = i;
-        for (int32_t j = i+1; j < edge.edge_c; j++){
-            if (pmap.p_edge[sorted_edge[j]] < pmap.p_edge[sorted_edge[j_min]]) j_min = j;
+    #ifdef TRANSPOSITION_TABLE
+    // Return if this position is in transposition table
+    TranspositionTableEntry* table_entry = transposition_table_get(state);
+    if (table_entry != NULL) {
+        *result = table_entry->result;
+        return;
+    }
+    #endif
+
+
+    // Get probability-map for current board
+    Edge edge;
+    PermutationSet permutation_set;
+    ProbabilityMap pmap;
+
+    get_permutation_set(board, &edge, &permutation_set, &pmap);
+    get_pmap(board, &edge, &permutation_set, &pmap);
+    if (permutation_set.initialized) permutation_set_deinit(&permutation_set);
+    result->total_combinations = pmap.comb_total;
+
+    if (!pmap.valid) {
+        result->total_combinations = 0;
+        result->p = 0.0;
+        #ifdef TRANSPOSITION_TABLE
+        TranspositionTableEntry entry = {
+            .state = *state,
+            .result = *result,
+        };
+        transposition_table_set(&entry);
+        #endif
+        return;
+    }
+
+
+    // If last step of search, only check for best probability
+    if (state->search_depth + 1 == max_depth) {
+        get_lowest_probability(board, &edge, &pmap, &result->p, &result->best_move);
+        #ifdef TRANSPOSITION_TABLE
+        TranspositionTableEntry entry = {
+            .state = *state,
+            .result = *result,
+        };
+        transposition_table_set(&entry);
+        #endif
+        return;
+    }
+
+
+
+    result->p = 1.0;
+    result->best_move = -1;
+
+    int32_t sorted_pos[MAX_EDGE_SIZE];
+    double sorted_p[MAX_EDGE_SIZE];
+    int32_t sorted_c = get_best_evaluations(board, &edge, &pmap, 
+                                            sorted_pos, sorted_p);
+    
+    if (sorted_p[0] == 0.0) {
+        if (state->search_depth == 0) {
+            result->p = 0.0;
+            result->best_move = sorted_pos[0];
+            return;
         }
-        if (j_min != i){
-            int32_t temp = sorted_edge[i];
-            sorted_edge[i] = sorted_edge[j_min];
-            sorted_edge[j_min] = temp;
+        sorted_c = 1;
+    }
+
+    Board new_board = *board;
+    for (int32_t i = 0; i < sorted_c; i++) {
+        int32_t pos = sorted_pos[i];
+        double p = sorted_p[i];
+        if (p >= result->p) break;
+
+        new_board.known[pos] = true;
+
+        double total_combs = 0;
+        double avg_p = 0.0;
+        int32_t adjacent_unknown_c = get_adjacent_unknown_c(&new_board, pos);
+
+        for (int32_t v = 0; v <= adjacent_unknown_c; v++) {
+            new_board.v[pos] = v;
+            SearchResult new_result;
+            SolverSearchState new_state = *state;
+            state_add_position(&new_state, pos, v);
+            
+            tree_search(&new_board, &new_state, max_depth, &new_result);
+            avg_p += new_result.p * new_result.total_combinations;
+            total_combs += new_result.total_combinations;
+        }
+        avg_p /= total_combs;
+        new_board.known[pos] = false;
+
+        double new_p = 1.0 - (1.0 - p) * (1.0 - avg_p);
+        if (new_p < result->p) {
+            result->p = new_p;
+            result->best_move = pos;
         }
     }
-    //printf("pmap exterior:%f\n", pmap.p_exterior);
-    //printf("edge_c: %d\n", edge.edge_c);
-    //printf("solved_c: %d\n", edge.edge_solved_c);
-    //printf("exterior_c: %d\n", edge.exterior_c);
+
+    #ifdef TRANSPOSITION_TABLE
+    TranspositionTableEntry entry = {
+        .state = *state,
+        .result = *result,
+    };
+    transposition_table_set(&entry);
+    #endif
+}
+
+void get_solver_result(Board* board, Arguments* args, SolverResult* solver_result) {
+    solver_result->valid = true;
+
+    #ifdef TRANSPOSITION_TABLE
+    transposition_table_init();
+    #endif
 
     int32_t safe_sqs_left = board->unknown_c - board->mine_c;
     int32_t max_depth;
 
-    if (safe_sqs_left <= args->min_brute) {
-        max_depth = safe_sqs_left;
-    }
-    else {
-        max_depth = min(args->max_depth, safe_sqs_left);
-    }
+    if (board->unknown_c == board->w * board->h) max_depth = 1;
+    else max_depth = min(args->max_depth, safe_sqs_left);
 
-    double best_p = 1.00001;
-    solver_result->best_search = -1;
-    for(int32_t i = 0; i < edge.edge_solved_c; i++) {
-        if (pmap.p_solved[i] == 0.0) {
-            best_p = 0.0;
-            solver_result->best_search = edge.edge_solved[i];
-            break;
-        }
-    }
-    for(int32_t i_ = 0; i_ < edge.edge_c; i_++) {
-        int32_t i = sorted_edge[i_];
-        if (pmap.p_edge[i] >= best_p) break;
-        double next_p = 1 - (1 - pmap.p_edge[i]) * (1 - tree_search(board, edge.edge[i], max_depth - 1));
-        if(next_p < best_p) {
-            best_p = next_p;
-            solver_result->best_search = edge.edge[i];
-        }
-    }
-    if (pmap.p_exterior < best_p && edge.exterior_c > 0) {
+    SolverSearchState state = {.search_depth = 0};
+    SearchResult result;
+    tree_search(board, &state, max_depth, &result);
+    solver_result->best_search = result.best_move;
+    solver_result->best_1step = result.best_move;
+    solver_result->total_combinations = result.total_combinations;
 
-        //Find the exterior point with lowest adjacent unknown (usually corners)
-        int32_t best_exterior = -1;
-        int32_t lowest_adjacent_unknown = 9;
-        int32_t adj[8];
-        for (int32_t i = 0; i < edge.exterior_c; i++) {
-            int32_t adj_c = get_adjacent_unknown(board, edge.exterior[i], adj);
-            if (adj_c < lowest_adjacent_unknown) {
-                lowest_adjacent_unknown = adj_c;
-                best_exterior = edge.exterior[i];
-            }
-        }
+    Edge edge;
+    PermutationSet permutation_set;
+    ProbabilityMap pmap;
+    get_permutation_set(board, &edge, &permutation_set, &pmap);
+    get_pmap(board, &edge, &permutation_set, &pmap);
+    permutation_set_deinit(&permutation_set);
+    pmap_to_board(board, &edge, &pmap, solver_result->p);
 
-        double next_p = 1 - (1 - pmap.p_exterior) * (1 - tree_search(board, best_exterior, max_depth - 1));
-        if(next_p < best_p) {
-            best_p = next_p;
-            solver_result->best_search = best_exterior;
-        }
-    }
 
-    if (solver_result->best_search == -1) {
-        solver_result->valid = false;
-    }
+    #ifdef TRANSPOSITION_TABLE
+    transposition_table_deinit();
+    #endif
 }

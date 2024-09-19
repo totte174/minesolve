@@ -13,15 +13,9 @@ void get_base_edge_and_equations(Board* board, Edge* edge, EquationSet* equation
     mask_reset(equation_set->solved_mines);
 
     for (int32_t p = 0; p < board->w * board->h; p++) {
-        int32_t adj[8];
-        int32_t adj_c = get_adjacent(board, p, adj);
-        bool is_edge = false;
-        for (int j = 0; j < adj_c; j++) {
-            if (board->known[p] != board->known[adj[j]]) is_edge = true;
-        }
 
         if (!board->known[p]) {
-            if (is_edge) {
+            if (is_edge(board, p)) {
                 edge->edge[edge->edge_c++] = p;
             }
             else {
@@ -29,7 +23,7 @@ void get_base_edge_and_equations(Board* board, Edge* edge, EquationSet* equation
             }
         }
         else {
-            if (is_edge){
+            if (is_edge(board, p)){
                 edge_interior[equation_set->equation_c++] = p;
             }
         }
@@ -110,6 +104,7 @@ bool remove_solved(EquationSet* equation_set){
         if (eq->amount > mask_count(eq->mask) || eq->amount < 0){
             // Contradiction, no valid permutations can satisfy this equation
             equation_set->valid = false;
+            return false;
         }
 
         if (mask_count(eq->mask) == eq->amount){ 
@@ -119,6 +114,7 @@ bool remove_solved(EquationSet* equation_set){
                 if (~equation_set->solved_mines.v[j] & equation_set->solved_mask.v[j] & eq->mask.v[j]) { 
                     // Contradiction, same square is both solved 1 and solved 0
                     equation_set->valid = false;
+                    return false;
                 }
 
                 equation_set->solved_mask.v[j] |= eq->mask.v[j];
@@ -136,6 +132,7 @@ bool remove_solved(EquationSet* equation_set){
                 if (equation_set->solved_mines.v[j] & equation_set->solved_mask.v[j] & eq->mask.v[j]) { 
                     // Contradiction, same square is both solved 1 and solved 0
                     equation_set->valid = false;
+                    return false;
                 }
                 equation_set->solved_mask.v[j] |= eq->mask.v[j];
             }
@@ -164,13 +161,15 @@ bool remove_subequations(EquationSet* equation_set) {
     bool any_changed = false;
     for (int32_t i = 0; i < equation_set->equation_c; i++) {
         for (int32_t j = i + 1; j < equation_set->equation_c; j++) {
-            if (is_subequation(equation_set->equations + i, equation_set->equations + j)){
-                remove_subequation(equation_set->equations + i, equation_set->equations + j);
-                any_changed = true;
-            }
-            if (is_subequation(equation_set->equations + j, equation_set->equations + i)){
-                remove_subequation(equation_set->equations + j, equation_set->equations + i);
-                any_changed = true;
+            if (mask_overlap(equation_set->equations[i].mask, equation_set->equations[j].mask)) {
+                if (is_subequation(equation_set->equations + i, equation_set->equations + j)){
+                    remove_subequation(equation_set->equations + i, equation_set->equations + j);
+                    any_changed = true;
+                }
+                if (is_subequation(equation_set->equations + j, equation_set->equations + i)){
+                    remove_subequation(equation_set->equations + j, equation_set->equations + i);
+                    any_changed = true;
+                }
             }
         }
     }
@@ -179,7 +178,7 @@ bool remove_subequations(EquationSet* equation_set) {
 
 void reduce(EquationSet* equation_set) {
     bool any_changed = true;
-    while (any_changed) {
+    while (any_changed && equation_set->valid) {
         any_changed = false;
         any_changed |= remove_subequations(equation_set);
         any_changed |= remove_solved(equation_set);

@@ -8,10 +8,14 @@
 #include "common.h"
 #include "equations.h"
 
+#define MIN_PERMUTATIONS (2ULL << 18ULL)
+#define MAX_PERMUTATIONS (2ULL << 26ULL)
+
 typedef struct PermutationSet {
     Mask* permutations;
     int32_t permutation_size;
     int32_t permutation_c;
+    bool initialized;
 
     int32_t splits_length[MAX_EDGE_SIZE];
     int32_t splits_start[MAX_EDGE_SIZE];
@@ -22,5 +26,5 @@ typedef struct PermutationSet {
 
 int32_t mine_c(Mask* permutation);
 void get_permutation_set(Board* board, Edge* edge, PermutationSet* permutation_set, ProbabilityMap* pmap);
-void destroy_permutations(PermutationSet* permutation_set);
+void permutation_set_deinit(PermutationSet* permutation_set);
 #endif

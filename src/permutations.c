@@ -131,13 +131,16 @@ void get_permutations_from_split(PermutationSet* permutation_set, EquationSet* e
 void get_permutation_set(Board* board, Edge* edge, PermutationSet* permutation_set, ProbabilityMap* pmap){
     static EquationSet equation_set;
 
-    permutation_set->permutation_size = MIN_PERMUTATIONS;
-    permutation_set->permutations = malloc(sizeof(Mask) * permutation_set->permutation_size);
-    permutation_set->permutation_c = 0;
-    
+    permutation_set->initialized = false;
+
     get_equation_set(board, edge, &equation_set, pmap);
     permutation_set->valid = equation_set.valid;
     if (!permutation_set->valid) return;
+
+    permutation_set->permutation_size = MIN_PERMUTATIONS;
+    permutation_set->permutations = malloc(sizeof(Mask) * permutation_set->permutation_size);
+    permutation_set->permutation_c = 0;
+    permutation_set->initialized = true;
     permutation_set->split_c = equation_set.split_c;
 
     for (int32_t split_i = 0; split_i < equation_set.split_c; split_i++) {
@@ -145,6 +148,137 @@ void get_permutation_set(Board* board, Edge* edge, PermutationSet* permutation_s
     }
 }
 
-void destroy_permutations(PermutationSet* permutation_set) {
+void permutation_set_deinit(PermutationSet* permutation_set) {
     free(permutation_set->permutations);
 }
+
+//int32_t get_splits(Edge* edge, int32_t* positions, int32_t pos_c, int32_t* splits) {
+//    int32_t splits_found = 0;
+//
+//    for (int32_t split_i = 0; split_i < edge->split_c; split_i++) {
+//        for (int32_t i = edge->splits_start[split_i];
+//             i < edge->splits_start[split_i] + edge->splits_length[split_i]; i++) {
+//            
+//            for (int32_t j = 0; j < pos_c; j++) {
+//                if (edge->edge[i] == positions[j]) {
+//                    bool split_exists = false;
+//                    for (int32_t k = 0; k < splits_found; k++) {
+//                        if (splits[k] == split_i) split_exists = true;
+//                    }
+//                    if (!split_exists) {
+//                        splits[splits_found++] = split_i;
+//                    }
+//                }
+//            }
+//        }
+//    }
+//    return splits_found;
+//}
+
+//void get_permutation_set_from_old(Board* board, Edge* edge, PermutationSet* permutation_set, ProbabilityMap* pmap, 
+//                                  Edge* prev_edge, PermutationSet* prev_perm_set, ProbabilityMap* prev_pmap,
+//                                  int32_t pos, int32_t v) {
+//    permutation_set->permutation_size = prev_perm_set->permutation_size;
+//    permutation_set->permutations = malloc(sizeof(Mask) * permutation_set->permutation_size);
+//    permutation_set->permutation_c = prev_perm_set->permutation_c;
+//    permutation_set->valid = true;
+//    memcpy(edge, prev_edge, sizeof(Edge));
+//    //memcpy(permutation_set->permutations, prev_perm_set->permutations,
+//    //       prev_perm_set->permutation_c * sizeof(Mask));
+//    memcpy(pmap, prev_pmap, sizeof(pmap));
+//
+//    int32_t adj[8];
+//    int32_t adj_c = get_adjacent_unknown(board, pos, adj);
+//    if (v > adj_c || v < 0) {
+//        permutation_set->valid = false;
+//        pmap->valid = false;
+//        return;
+//    }
+//    int32_t adj_split;
+//    bool adj_in_split = (bool) get_splits(edge, adj, adj_c, &adj_split);
+//
+//    int32_t pos_split;
+//    bool pos_in_split = (bool) get_splits(edge, &pos, 1, &pos_split);
+//
+//    bool in_split = adj_in_split && pos_in_split;
+//    int32_t current_split;
+//    if (adj_in_split) current_split = adj_split;
+//    if (pos_in_split) current_split = pos_split;
+//
+//    if (!in_split) {
+//        memcpy(permutation_set->permutations, prev_perm_set->permutations,
+//               prev_perm_set->permutation_c * sizeof(Mask));
+//        if (v == 0 || v == adj_c) {
+//            double mine = (double) v == adj_c;
+//            for (int32_t i = 0; i < adj_c; i++) {
+//                bool already_solved = false;
+//                for (int32_t j = 0; j < edge->edge_solved_c; j++) {
+//                    if (edge->edge_solved[j] == adj[i]) {
+//                        if (pmap->p_solved[j] != mine) {
+//                            permutation_set->valid = false;
+//                            pmap->valid = false;
+//                            return;
+//                        }
+//                        already_solved = true;
+//                        break;
+//                    }
+//                }
+//                if (already_solved) continue;
+//                edge->edge_solved[edge->edge_solved_c] = adj[i];
+//                pmap->p_solved[edge->edge_solved_c] = mine;
+//                edge->edge_solved_c++;
+//            }
+//        }
+//    }
+//    else {
+//        memcpy(permutation_set->permutations, prev_perm_set->permutations,
+//               prev_perm_set->permutation_c * sizeof(Mask));
+//        if (v == 0 || v == adj_c) {
+//            double mine = (double) v == adj_c;
+//            for (int32_t i = 0; i < adj_c; i++) {
+//                bool already_solved = false;
+//                for (int32_t j = 0; j < edge->edge_solved_c; j++) {
+//                    if (edge->edge_solved[j] == adj[i]) {
+//                        if (pmap->p_solved[j] != mine) {
+//                            permutation_set->valid = false;
+//                            pmap->valid = false;
+//                            return;
+//                        }
+//                        already_solved = true;
+//                        break;
+//                    }
+//                }
+//                if (already_solved) continue;
+//                edge->edge_solved[edge->edge_solved_c] = adj[i];
+//                pmap->p_solved[edge->edge_solved_c] = mine;
+//                edge->edge_solved_c++;
+//            }
+//
+//            int32_t after_i = permutation_set->splits_start[current_split];
+//            for (int32_t i = permutation_set->splits_start[current_split];
+//                 i < permutation_set->splits_start[current_split] + permutation_set->splits_length[current_split]; i++) {
+//
+//                bool valid_perm = true;
+//                for (int32_t j = 0; j < edge->splits_length[current_split]; j++) {
+//                    
+//                    if (edge->edge[edge->splits_start[current_split] + j] == pos) {
+//                        
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
+//
+//
+//bool unknown_in_one_split(Board* board, Edge* edge, int32_t pos) {
+//    int32_t adj[9];
+//    int32_t adj_c = get_adjacent_unknown(board, pos, adj);
+//    adj[adj_c++] = pos;
+//    
+//    int32_t split;
+//    bool split_found = false;
+//
+//    int32_t splits[9];
+//    return get_splits(edge, adj, adj_c, splits) < 2;
+//}

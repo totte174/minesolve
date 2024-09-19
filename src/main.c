@@ -54,17 +54,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         if (arguments->mines == 0) argp_usage(state);
         break;
     case 'c':
-        if (strcasecmp(arg, "expert")) {
+        if (strcasecmp(arg, "expert") == 0) {
             arguments->width = 30;
             arguments->height = 16;
             arguments->mines = 99;
         }
-        else if (strcasecmp(arg, "intermediate")) {
+        else if (strcasecmp(arg, "intermediate") == 0) {
             arguments->width = 16;
             arguments->height = 16;
             arguments->mines = 40;
         }
-        else if (strcasecmp(arg, "beginner")) {
+        else if (strcasecmp(arg, "beginner") == 0) {
             arguments->width = 9;
             arguments->height = 9;
             arguments->mines = 10;
@@ -115,15 +115,14 @@ int32_t main(int32_t argc, char** argv)
         .width = 30,
         .height = 16,
         .mines = 99,
-        .test_games = 10000000, //0
-        .alpha = 0,
-        .max_depth = 1,
+        .test_games = 1000, //EDITED
+        .alpha = 0.0,
+        .max_depth = 6, //EDITED
         .min_brute = 0,
         .output_file = "",
         .p_only = false,
     };
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
-    if (arguments.alpha == 0) arguments.p_only = true;
 
     int32_t wins = 0;
     for (int32_t i = 0; i < arguments.test_games; i++)

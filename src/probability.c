@@ -11,7 +11,7 @@ void get_pmap(Board* board, Edge* edge, PermutationSet* permutation_set, Probabi
     static int32_t split_mine_c_max[MAX_EDGE_SIZE];
     int32_t n = edge->exterior_c;
 
-    pmap->valid = permutation_set->valid && (n >=    0);
+    pmap->valid = permutation_set->valid && (n >= 0);
     if(!pmap->valid) return;
 
     pmap->comb_total = 0;
@@ -151,3 +151,96 @@ int32_t pmap_to_board(Board* board, Edge* edge, ProbabilityMap* pmap, double* pr
     }
     return best_p_pos;
 }
+
+void get_lowest_probability(Board* board, Edge* edge, ProbabilityMap* pmap, 
+                            double* p, int32_t* pos) {
+    *p = 1.0;
+    for (int32_t i = 0; i < edge->edge_solved_c; i++) {
+        if (pmap->p_solved[i] == 0.0) {
+            *p = 0.0;
+            *pos = edge->edge_solved[i];
+            return;
+        }
+    }
+    
+    for (int32_t i = 0; i < edge->edge_c; i++) {
+        if (pmap->p_edge[i] < *p) {
+            *p = pmap->p_edge[i];
+            *pos = edge->edge[i];
+        }
+    }
+
+    if (edge->exterior_c > 0 && pmap->p_exterior < *p) {
+        *p = pmap->p_exterior;
+        int32_t lowest_adjacent_unknown = 9;
+        int32_t adj_c;
+        for (int32_t i = 0; i < edge->exterior_c; i++) {
+            adj_c = get_adjacent_unknown_c(board, edge->exterior[i]);
+            if (adj_c < lowest_adjacent_unknown) {
+                lowest_adjacent_unknown = adj_c;
+                *pos = edge->exterior[i];
+            }
+        }
+    }
+}
+
+int32_t get_best_evaluations(Board* board, Edge* edge, ProbabilityMap* pmap, 
+                             int32_t* best_pos, double* best_p) {
+    if (!pmap->valid) return 0;
+
+    // If solved safe position, return only that position
+    for (int32_t i = 0; i < edge->edge_solved_c; i++) {
+        if (pmap->p_solved[i] == 0.0) {
+            *best_pos = edge->edge_solved[i];
+            *best_p = 0.0;
+            return 1;
+        }
+    }
+
+    int32_t best_c = 0;
+
+    // Edge positions
+    for (int32_t i = 0; i < edge->edge_c; i++) {
+        if (pmap->p_edge[i] < 1.0) {
+            best_p[best_c] = pmap->p_edge[i];
+            best_pos[best_c] = edge->edge[i];
+            best_c++;
+        }
+    }
+
+    //Find the exterior point with least adjacent unknown (usually corners)
+    if (edge->exterior_c > 0) {
+        int32_t lowest_adjacent_unknown = 9;
+        int32_t adj_c;
+        for (int32_t i = 0; i < edge->exterior_c; i++) {
+            adj_c = get_adjacent_unknown_c(board, edge->exterior[i]);
+            if (adj_c < lowest_adjacent_unknown) {
+                lowest_adjacent_unknown = adj_c;
+                best_pos[best_c] = edge->exterior[i];
+            }
+        }
+        best_p[best_c] = pmap->p_exterior;
+        best_c++;
+    }
+
+    // Sort by probability ( in O(n^2) :P )
+    int32_t temp_pos;
+    double temp_p;
+    for (int32_t i = 0; i < best_c; i++) {
+        for (int32_t j = i + 1; j < best_c; j++) {
+            if (best_p[i] > best_p[j]) {
+                temp_pos = best_pos[i];
+                temp_p = best_p[i];
+
+                best_pos[i] = best_pos[j];
+                best_p[i] = best_p[j];
+                
+                best_pos[j] = temp_pos;
+                best_p[j] = temp_p;
+            }
+        }
+    }
+
+    return best_c;
+}
+

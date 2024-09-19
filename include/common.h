@@ -24,8 +24,8 @@
 #define MAX_MINE_C_DIFF 18
 #define MASK_PARTS (MAX_EDGE_SIZE / 64)
 #define MAX_EDGE_SIZE (3*64)
-#define MIN_PERMUTATIONS (2ULL << 18ULL)
-#define MAX_PERMUTATIONS (2ULL << 26ULL)
+#define MAX_SEARCH 8
+#define TRANSPOSITION_TABLE
 
 typedef struct Arguments
 {

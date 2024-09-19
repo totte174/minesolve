@@ -107,8 +107,11 @@ bool play_game(Arguments* args) {
             for (int32_t i = 0; i < board.w * board.h; i++) {
                 if (solver_result.p[i] == 0 && !board.known[i]) {
                     if (!move(&board, i, first_move)) {
+                        #ifdef DEBUG
                         printf("MINE WHERE P=0\n");
                         exit(1);
+                        #endif
+                        return false;
                     }
                     first_move = false;
                 }
