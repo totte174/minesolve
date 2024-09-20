@@ -6,25 +6,33 @@ void get_base_edge_and_equations(Board* board, Edge* edge, EquationSet* equation
     edge->edge_solved_c = 0;
     edge->split_c = 0;
 
-    int32_t edge_interior[MAX_SQUARES];
+    int32_t edge_known[MAX_SQUARES];
+    bool a_is_edge[MAX_SQUARES] = {false};
     equation_set->equation_c = 0;
     equation_set->split_c = 0;
     mask_reset(equation_set->solved_mask);
     mask_reset(equation_set->solved_mines);
 
     for (int32_t p = 0; p < board->w * board->h; p++) {
-
-        if (!board->known[p]) {
-            if (is_edge(board, p)) {
+        if (board->known[p]){
+            int32_t adj[8];
+            int32_t adj_c = get_adjacent_unknown(board, p, adj);
+            if (adj_c > 0) a_is_edge[p] = true;
+            for (int32_t i = 0; i < adj_c; i++) a_is_edge[adj[i]] = true;
+        }
+    }
+    for (int32_t p = 0; p < board->w * board->h; p++) {
+        if (board->known[p]){
+            if (a_is_edge[p]) {
+                edge_known[equation_set->equation_c++] = p;
+            }
+        }
+        else {
+            if (a_is_edge[p]) {
                 edge->edge[edge->edge_c++] = p;
             }
             else {
                 edge->exterior[edge->exterior_c++] = p;
-            }
-        }
-        else {
-            if (is_edge(board, p)){
-                edge_interior[equation_set->equation_c++] = p;
             }
         }
     }
@@ -32,10 +40,10 @@ void get_base_edge_and_equations(Board* board, Edge* edge, EquationSet* equation
     for (int32_t i = 0; i < equation_set->equation_c; i++) {
         Equation* equation = equation_set->equations + i;
         mask_reset(equation->mask);
-        equation->amount = board->v[edge_interior[i]];
+        equation->amount = board->v[edge_known[i]];
 
         int32_t adj[8];
-        int32_t adj_c = get_adjacent_unknown(board, edge_interior[i], adj);
+        int32_t adj_c = get_adjacent_unknown(board, edge_known[i], adj);
 
         for (int32_t k = 0; k < edge->edge_c; k++) {
             for (int32_t j = 0; j < adj_c; j++) {
@@ -202,6 +210,7 @@ void split_equations(Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap
         explored[start_eq] = true;
 
         while (q>=0) {
+            if (q >= 200) printf("Queue full - split_equations");
             int32_t cur = queue[q];
             q--;
             split_labels[cur] = label;
@@ -296,15 +305,9 @@ void get_equation_set(Board* board, Edge* edge, EquationSet* equation_set, Proba
     equation_set->valid = true;
 
     get_base_edge_and_equations(board, edge, equation_set);
-    //printf("----------------After base\n");
-    //print_equation_set(edge, equation_set);
 
     reduce(equation_set);
-    //printf("----------------After reduce\n");
-    //print_equation_set(edge, equation_set);
     if (!equation_set->valid) return;
 
     split_equations(edge, equation_set, pmap);
-    //printf("----------------After split\n");
-    //print_equation_set(edge, equation_set);
 }
