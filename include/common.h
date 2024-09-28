@@ -3,6 +3,12 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
+#include <strings.h>
+#include <stdlib.h>
+
+// ----------- MACRO FUNCTIONS
 
 #define max(a,b)             \
 ({                           \
@@ -18,22 +24,33 @@
     _a < _b ? _a : _b;       \
 })
 
-#define DEBUG false
+
+// ----------- HARDCODED LIMITATIONS
+
 #define MAX_MINES 256
 #define MAX_SQUARES 1024
 #define MAX_MINE_C_DIFF 18
-#define MASK_PARTS (MAX_EDGE_SIZE / 64)
 #define MAX_EDGE_SIZE (3*64)
-#define MAX_SEARCH 8
-#define TRANSPOSITION_TABLE
+#define MASK_PARTS (MAX_EDGE_SIZE / 64)
+#define MAX_SEARCH 6
+//#define TRANSPOSITION_TABLE
+
+// ----------- UNIVERSAL STRUCTS & ENUMS
+
+typedef enum FaultStatus {
+    valid_status = 0u,
+    fault_computational_limit,
+    fault_internal_limit,
+    fault_invalid_board,
+    fault_unknown,
+} FaultStatus;
 
 typedef struct Arguments
 {
     char board[2*MAX_SQUARES];
     char output_file[512];
-    int32_t width, height, mines, test_games, max_depth, min_brute;
-    double alpha;
-    bool p_only;
+    int32_t width, height, mines, test_games, max_depth;
+    bool wrapping_borders;
 } Arguments;
 
 typedef struct Board {
@@ -44,6 +61,7 @@ typedef struct Board {
     int32_t v[MAX_SQUARES];
     bool known[MAX_SQUARES];
     bool mines[MAX_SQUARES];
+    bool wrapping_borders;
 } Board;
 
 typedef struct Edge {
@@ -61,7 +79,6 @@ typedef struct Edge {
 } Edge;
 
 typedef struct ProbabilityMap {
-    bool valid;
     double comb_total;
     double p_edge[MAX_EDGE_SIZE];
     double p_solved[MAX_EDGE_SIZE];
@@ -71,6 +88,8 @@ typedef struct ProbabilityMap {
 typedef struct Mask {
     uint64_t v[MASK_PARTS];
 } Mask;
+
+// ----------- MASK MACRO FUNCTIONS
 
 #define mask_overlap(mask1, mask2)              \
 ({                                              \

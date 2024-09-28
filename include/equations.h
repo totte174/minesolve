@@ -1,10 +1,6 @@
 #ifndef EQUATIONS_H
 #define EQUATIONS_H
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdio.h>
-
 #include "common.h"
 #include "board.h"
 
@@ -12,7 +8,6 @@ typedef struct Equation {
     Mask mask;
     int32_t amount;
 } Equation;
-
 
 typedef struct EquationSet {
     Equation equations[MAX_SQUARES];
@@ -23,10 +18,8 @@ typedef struct EquationSet {
 
     Mask solved_mask;
     Mask solved_mines;
-
-    bool valid;
 } EquationSet;
 
-void get_equation_set(Board* board, Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap);
+FaultStatus get_equation_set(Board* board, Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap);
 
 #endif

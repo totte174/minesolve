@@ -1,41 +1,35 @@
 # Compiler and Directories
 CC := gcc
 SRCDIR := src
-BUILDDIR := build
 BINDIR := bin
 TARGET := $(BINDIR)/mssolve
+DEBUGTARGET := $(BINDIR)/mssolve-debug
 SRCEXT := c
-
-# Source and Object Files
 SOURCES := $(wildcard $(SRCDIR)/*.$(SRCEXT))
-OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
 
 # Flags and Includes
-CFLAGS := -Wall -O3
+CFLAGS := -Wall -O3 -pg
 DEBUGFLAGS := -Wall -g
 INC := -I include
 LIBS := -lm
 
-# Linking target
-$(TARGET): $(OBJECTS)
+all: mssolve debug
+
+profiler:
 	@mkdir -p $(BINDIR)
-	@echo "Linking $@..."
-	$(CC) $(OBJECTS) -o $@ $(LIBS)
+	$(CC) $(CFLAGS) $(SOURCES) $(INC) -o $(TARGET) $(LIBS) -pg
 
-# Compile source files into object files
-$(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
-	@mkdir -p $(dir $@)
-	@echo "Compiling $<..."
-	$(CC) $(CFLAGS) $(INC) -c -o $@ $< -MMD -MF $(@:.o=.d)
+mssolve:
+	@mkdir -p $(BINDIR)
+	$(CC) $(CFLAGS) $(SOURCES) $(INC) -o $(TARGET) $(LIBS)
 
-# Include dependency files
-DEPS := $(OBJECTS:.o=.d)
--include $(DEPS)
-
-# Clean build and binary files
 clean:
 	@echo "Cleaning up..."
-	$(RM) -r $(BUILDDIR) $(BINDIR)
+	$(RM) -r $(BINDIR)
+
+debug:
+	@mkdir -p $(BINDIR)
+	$(CC) $(DEBUGFLAGS) $(SOURCES) $(INC) -o $(DEBUGTARGET) $(LIBS)
 
 # Phony targets
-.PHONY: clean
+.PHONY: clean debug 

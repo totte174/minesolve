@@ -1,9 +1,6 @@
 #ifndef BOARD_H
 #define BOARD_H
 
-#include <stdint.h>
-#include <stdbool.h>
-
 #include "common.h"
 
 int32_t get_adjacent(Board* board, int32_t p, int32_t* adj);

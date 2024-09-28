@@ -6,13 +6,24 @@ double choose(double n, double k) {
     return (n * choose(n - 1, k - 1)) / k;
 }
 
-void get_pmap(Board* board, Edge* edge, PermutationSet* permutation_set, ProbabilityMap* pmap) {
+FaultStatus get_pmap(Board* board, Edge* edge, ProbabilityMap* pmap) {
+    static PermutationSet permutation_set;
+    FaultStatus fault_status = valid_status;
+    fault_status = get_permutation_set(board, edge, &permutation_set, pmap);
+    if (fault_status) {
+        permutation_set_deinit(&permutation_set);
+        return fault_status;
+    }
+
     static int32_t split_mine_c_min[MAX_EDGE_SIZE];
     static int32_t split_mine_c_max[MAX_EDGE_SIZE];
     int32_t n = edge->exterior_c;
 
-    pmap->valid = permutation_set->valid && (n >= 0);
-    if(!pmap->valid) return;
+    if(n < 0) {
+        permutation_set_deinit(&permutation_set);
+        fault_status = fault_invalid_board;
+        return fault_status;
+    }
 
     pmap->comb_total = 0;
     pmap->p_exterior = 0;
@@ -26,39 +37,41 @@ void get_pmap(Board* board, Edge* edge, PermutationSet* permutation_set, Probabi
     }
     int32_t total_mine_c_min = solved_mines;
     int32_t total_mine_c_max = solved_mines;
-    for (int32_t split_i = 0; split_i < permutation_set->split_c; split_i++) 
+    for (int32_t split_i = 0; split_i < permutation_set.split_c; split_i++) 
     {
         split_mine_c_min[split_i] = MAX_MINES;
         split_mine_c_max[split_i] = 0;
-        for (int32_t i = 0; i < permutation_set->splits_length[split_i]; i++){
-            Mask* perm = permutation_set->permutations + permutation_set->splits_start[split_i] + i;
+        for (int32_t i = 0; i < permutation_set.splits_length[split_i]; i++){
+            Mask* perm = permutation_set.permutations + permutation_set.splits_start[split_i] + i;
             
             split_mine_c_min[split_i] = min(split_mine_c_min[split_i], mine_c(perm));
             split_mine_c_max[split_i] = max(split_mine_c_max[split_i], mine_c(perm));
         }
         if (split_mine_c_max[split_i] < split_mine_c_min[split_i]) { //Not valid permutation in split -> not valid pmap
-            pmap->valid = false;
-            return;
+            permutation_set_deinit(&permutation_set);
+            fault_status = fault_invalid_board;
+            return fault_status;
         }
         total_mine_c_min += split_mine_c_min[split_i];
         total_mine_c_max += split_mine_c_max[split_i];
     }
 
     if (total_mine_c_max - total_mine_c_min >= MAX_MINE_C_DIFF) {
-        printf("MAX MINE C DIFF REACHED");
-        exit(1);
+        permutation_set_deinit(&permutation_set);
+        fault_status = fault_internal_limit;
+        return fault_status;
     }
     double rel_mine_c_p_edge[MAX_MINE_C_DIFF][MAX_EDGE_SIZE] = {0};
     double rel_mine_c_total_combs[MAX_MINE_C_DIFF] = {0};
     rel_mine_c_total_combs[0] = 1;
     int32_t cur_max_rel_mine_c = 0;
 
-    for (int32_t split_i = 0; split_i < permutation_set->split_c; split_i++) {
+    for (int32_t split_i = 0; split_i < permutation_set.split_c; split_i++) {
         double split_rel_mine_c_p_edge[MAX_MINE_C_DIFF][MAX_EDGE_SIZE] = {0};
         double split_rel_mine_c_total_combs[MAX_MINE_C_DIFF] = {0};        
 
-        for (int32_t i = 0; i < permutation_set->splits_length[split_i]; i++) {
-            Mask* perm = permutation_set->permutations + permutation_set->splits_start[split_i] + i;
+        for (int32_t i = 0; i < permutation_set.splits_length[split_i]; i++) {
+            Mask* perm = permutation_set.permutations + permutation_set.splits_start[split_i] + i;
 
             int32_t rel_mine_c = mine_c(perm) - split_mine_c_min[split_i];
             split_rel_mine_c_total_combs[rel_mine_c] += 1;
@@ -114,8 +127,9 @@ void get_pmap(Board* board, Edge* edge, PermutationSet* permutation_set, Probabi
     }
 
     if (pmap->comb_total == 0) { //No valid permutations
-        pmap->valid = false;
-        return;
+        permutation_set_deinit(&permutation_set);
+        fault_status = fault_invalid_board;
+        return fault_status;
     }
 
     if (n>0) pmap->p_exterior /= pmap->comb_total * ((double) n);
@@ -123,12 +137,12 @@ void get_pmap(Board* board, Edge* edge, PermutationSet* permutation_set, Probabi
         pmap->p_edge[i] /= pmap->comb_total;
     }
     pmap->comb_total *= choose(n, board->mine_c - total_mine_c_min_valid);
+
+    permutation_set_deinit(&permutation_set);
+    return fault_status;
 }
 
 int32_t pmap_to_board(Board* board, Edge* edge, ProbabilityMap* pmap, double* prob_a) {
-    if (!pmap->valid) {
-        return -1;
-    }
     for (int32_t i = 0; i < board->w * board->h; i++) {
         prob_a[i] = 0.0;
     }
@@ -186,8 +200,6 @@ void get_lowest_probability(Board* board, Edge* edge, ProbabilityMap* pmap,
 
 int32_t get_best_evaluations(Board* board, Edge* edge, ProbabilityMap* pmap, 
                              int32_t* best_pos, double* best_p) {
-    if (!pmap->valid) return 0;
-
     // If solved safe position, return only that position
     for (int32_t i = 0; i < edge->edge_solved_c; i++) {
         if (pmap->p_solved[i] == 0.0) {
@@ -240,6 +252,8 @@ int32_t get_best_evaluations(Board* board, Edge* edge, ProbabilityMap* pmap,
             }
         }
     }
+
+    if (best_p[0] == 0.0 && best_c > 0) best_c = 1;
 
     return best_c;
 }

@@ -1,7 +1,3 @@
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdio.h>
-
 #include "board.h"
 
 int32_t get_adjacent(Board* board, int32_t p, int32_t* adj) {

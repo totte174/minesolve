@@ -104,14 +104,14 @@ void remove_subequation(Equation* eq, Equation* super_eq) {
     super_eq->amount -= eq->amount;
 }
 
-bool remove_solved(EquationSet* equation_set){
+bool remove_solved(EquationSet* equation_set, FaultStatus* fault_status){
     bool any_changed = false;
 
     for (int32_t i = 0; i < equation_set->equation_c; i++) {
         Equation* eq = equation_set->equations + i;
         if (eq->amount > mask_count(eq->mask) || eq->amount < 0){
             // Contradiction, no valid permutations can satisfy this equation
-            equation_set->valid = false;
+            *fault_status = fault_invalid_board;
             return false;
         }
 
@@ -121,7 +121,7 @@ bool remove_solved(EquationSet* equation_set){
             for (int32_t j = 0; j < MASK_PARTS; j++) {
                 if (~equation_set->solved_mines.v[j] & equation_set->solved_mask.v[j] & eq->mask.v[j]) { 
                     // Contradiction, same square is both solved 1 and solved 0
-                    equation_set->valid = false;
+                    *fault_status = fault_invalid_board;
                     return false;
                 }
 
@@ -139,7 +139,7 @@ bool remove_solved(EquationSet* equation_set){
             for (int32_t j = 0; j < MASK_PARTS; j++) {
                 if (equation_set->solved_mines.v[j] & equation_set->solved_mask.v[j] & eq->mask.v[j]) { 
                     // Contradiction, same square is both solved 1 and solved 0
-                    equation_set->valid = false;
+                    *fault_status = fault_invalid_board;
                     return false;
                 }
                 equation_set->solved_mask.v[j] |= eq->mask.v[j];
@@ -184,13 +184,15 @@ bool remove_subequations(EquationSet* equation_set) {
     return any_changed;
 }
 
-void reduce(EquationSet* equation_set) {
+FaultStatus reduce(EquationSet* equation_set) {
+    FaultStatus fault_status = valid_status;
     bool any_changed = true;
-    while (any_changed && equation_set->valid) {
+    while (any_changed && !fault_status) {
         any_changed = false;
         any_changed |= remove_subequations(equation_set);
-        any_changed |= remove_solved(equation_set);
+        any_changed |= remove_solved(equation_set, &fault_status);
     }
+    return fault_status;
 }
 
 void split_equations(Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap) {
@@ -301,13 +303,12 @@ void split_equations(Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap
     }
 }
 
-void get_equation_set(Board* board, Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap){
-    equation_set->valid = true;
-
+FaultStatus get_equation_set(Board* board, Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap){
     get_base_edge_and_equations(board, edge, equation_set);
 
-    reduce(equation_set);
-    if (!equation_set->valid) return;
+    FaultStatus fault_status = reduce(equation_set);
+    if (fault_status) return fault_status;
 
     split_equations(edge, equation_set, pmap);
+    return fault_status;
 }

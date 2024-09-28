@@ -1,14 +1,6 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stdbool.h>
 #include <time.h>
-#include <stdlib.h>
 #include <argp.h>
-#include <string.h>
-#include <strings.h>
 
-#include "permutations.h"
-#include "board.h"
 #include "game.h"
 #include "common.h"
 
@@ -23,12 +15,10 @@ static struct argp_option options[] = {
     {"width", 'w', "WIDTH", 0, "Width of minesweeper board"},
     {"height", 'h', "HEIGHT", 0, "Height of minesweeper board"},
     {"mines", 'm', "MINES", 0, "Number of mines present in minesweeper board"},
+    {"wrapping-borders", 'W', 0, 0, "Set wrapping borders in minesweeper board"},
     {"config", 'c', "CONFIGURATION", 0, "Use preset configuration for width, height and number of mines: beginner, intermediate, or expert."},
-    {"alpha", 'a', "ALPHA", 0, "Alpha parameter to use with solver. (Unused right now)"},
-    {"max_depth", 'd', "MAX_DEPTH", 0, "Maximum depth for solver to search."},
-    {"min_brute", 'b', "MIN_BRUTE", 0, "Minimum amount of safe squares left for solver to enter brute force mode."},
+    {"max-depth", 'd', "MAX_DEPTH", 0, "Maximum depth for solver to search."},
     {"test", 't', "NUM", 0, "Let solver play NUM games and output the number of wins."},
-    {"p_only", 'p', 0, 0, "Only use probability for determining value "},
     {0}};
 
 
@@ -53,6 +43,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         arguments->mines = atoi(arg);
         if (arguments->mines == 0) argp_usage(state);
         break;
+    case 'W':
+        arguments->wrapping_borders = true;
+        break;
     case 'c':
         if (strcasecmp(arg, "expert") == 0) {
             arguments->width = 30;
@@ -71,22 +64,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         }
         else argp_usage(state);
         break;
-    case 'a':
-        arguments->alpha = strtod(arg, NULL);
-        break;
     case 'd':
         arguments->max_depth = atoi(arg);
-        break;
-    case 'b':
-        arguments->min_brute = atoi(arg);
         break;
     case 't':
         arguments->test_games = atoi(arg);
         break;
-    case 'p':
-        arguments->p_only = true;
-        break;
-
 
     case ARGP_KEY_ARG:
         if (state->arg_num >= 1 ) argp_usage(state); // Too many arguments.
@@ -94,7 +77,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
         break;
 
     case ARGP_KEY_END:
-        if (arguments->height * arguments->width <= 0 || arguments->height * arguments->width > MAX_SQUARES) argp_usage(state);
+        if ((arguments->height * arguments->width <= 0) || (arguments->height * arguments->width > MAX_SQUARES)) argp_usage(state);
         if (arguments->mines <= 0 || arguments->mines > MAX_MINES) argp_usage(state);
         if (arguments->test_games < 0) argp_usage(state);
         break;
@@ -109,25 +92,22 @@ static struct argp argp = {options, parse_opt, args_doc, doc};
 
 int32_t main(int32_t argc, char** argv)
 {
-    srand(time(NULL)); // NEVER FORGET
+    srand(time(NULL));
 
     Arguments arguments = {
         .width = 30,
         .height = 16,
         .mines = 99,
+        .wrapping_borders = false,
         .test_games = 1000, //EDITED
-        .alpha = 0.0,
-        .max_depth = 6, //EDITED
-        .min_brute = 0,
-        .output_file = "",
-        .p_only = false,
+        .max_depth = 1,
     };
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
     int32_t wins = 0;
     for (int32_t i = 0; i < arguments.test_games; i++)
     {
-        if (play_game(&arguments)) wins++;
+        wins += (int32_t) play_game(&arguments);
     }
     printf("%d\n", wins);
     exit(0);
