@@ -2,8 +2,8 @@
 CC := gcc
 SRCDIR := src
 BINDIR := bin
-TARGET := $(BINDIR)/mssolve
-DEBUGTARGET := $(BINDIR)/mssolve-debug
+TARGET := $(BINDIR)/minesolve
+DEBUGTARGET := $(BINDIR)/minesolve-debug
 SRCEXT := c
 SOURCES := $(wildcard $(SRCDIR)/*.$(SRCEXT))
 
@@ -13,13 +13,13 @@ DEBUGFLAGS := -Wall -g
 INC := -I include
 LIBS := -lm
 
-all: mssolve debug
+all: minesolve debug
 
 profiler:
 	@mkdir -p $(BINDIR)
 	$(CC) $(CFLAGS) $(SOURCES) $(INC) -o $(TARGET) $(LIBS) -pg
 
-mssolve:
+minesolve:
 	@mkdir -p $(BINDIR)
 	$(CC) $(CFLAGS) $(SOURCES) $(INC) -o $(TARGET) $(LIBS)
 

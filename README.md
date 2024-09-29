@@ -1,11 +1,11 @@
-# mssolve
+# minesolve
 
 A highly optimized Minesweeper solver implemented in C designed for effiency and high win rates.
 It utilizes combinatorial and probability analysis as well as game tree search to find optimal move for current board.
 
 ## Building
 
-Run ```make mssolve``` to compile ```./bin/mssolve```.
+Run ```make minesolve``` to compile ```./bin/minesolve```.
 
 Requires ```gcc``` (or [w64devkit](https://github.com/skeeto/w64devkit/releases/)) to compile (no external libraries needed).
 

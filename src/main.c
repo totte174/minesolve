@@ -4,9 +4,9 @@
 #include "game.h"
 #include "common.h"
 
-const char *argp_program_version = "mssolve 0.1";
+const char *argp_program_version = "minesolve 0.1";
 const char *argp_program_bug_address = "<totte174@gmail.com>";
-static char doc[] = "mssolve -- a program to analyze minesweeper boards";
+static char doc[] = "minesolve -- a program to analyze minesweeper boards";
 static char args_doc[] = "[<BOARD>]";
 
 static struct argp_option options[] = {
@@ -18,7 +18,7 @@ static struct argp_option options[] = {
     {"wrapping-borders", 'W', 0, 0, "Set wrapping borders in minesweeper board"},
     {"config", 'c', "CONFIGURATION", 0, "Use preset configuration for width, height and number of mines: beginner, intermediate, or expert."},
     {"max-depth", 'd', "MAX_DEPTH", 0, "Maximum depth for solver to search."},
-    {"test", 't', "NUM", 0, "Let solver play NUM games and output the number of wins."},
+    {"simulate", 's', "NUM", 0, "Let solver play NUM games and output the number of wins."},
     {0}};
 
 
@@ -67,7 +67,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     case 'd':
         arguments->max_depth = atoi(arg);
         break;
-    case 't':
+    case 's':
         arguments->test_games = atoi(arg);
         break;
 
