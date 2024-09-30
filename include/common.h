@@ -32,7 +32,7 @@
 #define MAX_MINE_C_DIFF 18
 #define MAX_EDGE_SIZE (3*64)
 #define MASK_PARTS (MAX_EDGE_SIZE / 64)
-#define MAX_SEARCH 6
+#define MAX_SEARCH 8
 //#define TRANSPOSITION_TABLE
 
 // ----------- UNIVERSAL STRUCTS & ENUMS
