@@ -1,13 +1,23 @@
 #include "equations.h"
 
-void get_base_edge_and_equations(Board* board, Edge* edge, EquationSet* equation_set) {
+void get_base_edge_and_equations(Board *board, Edge *edge, EquationSet *equation_set) {
+    /**
+     * Initializes Edge and EquationSet.
+     * 
+     * This function initializes Edge and EquationSet struct using given board.
+     * Creates one equation in equation set for every known square that has adjacent
+     * unknown squares.
+     * 
+     * @param Board* current board to initialize edge and equation set from.
+     * @param Edge* edge to initialize.
+     * @param EquationSet* equation_set equation set to create equations for and initialize.
+     */
+
     edge->edge_c = 0;
     edge->exterior_c = 0;
     edge->edge_solved_c = 0;
     edge->split_c = 0;
 
-    int32_t edge_known[MAX_SQUARES];
-    bool a_is_edge[MAX_SQUARES] = {false};
     equation_set->equation_c = 0;
     equation_set->split_c = 0;
     mask_reset(equation_set->solved_mask);
@@ -17,75 +27,45 @@ void get_base_edge_and_equations(Board* board, Edge* edge, EquationSet* equation
         if (board->known[p]){
             int32_t adj[8];
             int32_t adj_c = get_adjacent_unknown(board, p, adj);
-            if (adj_c > 0) a_is_edge[p] = true;
-            for (int32_t i = 0; i < adj_c; i++) a_is_edge[adj[i]] = true;
-        }
-    }
-    for (int32_t p = 0; p < board->w * board->h; p++) {
-        if (board->known[p]){
-            if (a_is_edge[p]) {
-                edge_known[equation_set->equation_c++] = p;
-            }
-        }
-        else {
-            if (a_is_edge[p]) {
-                edge->edge[edge->edge_c++] = p;
-            }
-            else {
-                edge->exterior[edge->exterior_c++] = p;
-            }
-        }
-    }
+            if (adj_c > 0) {
+                Equation* equation = equation_set->equations + equation_set->equation_c;
+                mask_reset(equation->mask);
+                equation->amount = board->v[p];
 
-    for (int32_t i = 0; i < equation_set->equation_c; i++) {
-        Equation* equation = equation_set->equations + i;
-        mask_reset(equation->mask);
-        equation->amount = board->v[edge_known[i]];
+                int32_t adj[8];
+                int32_t adj_c = get_adjacent_unknown(board, p, adj);
 
-        int32_t adj[8];
-        int32_t adj_c = get_adjacent_unknown(board, edge_known[i], adj);
-
-        for (int32_t k = 0; k < edge->edge_c; k++) {
-            for (int32_t j = 0; j < adj_c; j++) {
-                if (edge->edge[k] == adj[j]) {
-                    mask_set(equation->mask, k, 1);
-                    break;
+                for (int32_t j = 0; j < adj_c; j++) {
+                    int32_t ind = -1;
+                    for (int32_t k = 0; k < edge->edge_c; k++) {
+                        if (edge->edge[k] == adj[j]) ind = k;
+                    }
+                    if (ind != -1) mask_set(equation->mask, ind, 1);
+                    else {
+                        edge->edge[edge->edge_c] = adj[j];
+                        mask_set(equation->mask, edge->edge_c, 1);
+                        edge->edge_c++;
+                    }
                 }
+                equation_set->equation_c++;
             }
         }
     }
+    edge->exterior_c = board->unknown_c - edge->edge_c;
 }
 
-void print_equation(Equation* eq, int32_t l) {
-    for (uint64_t j = 0; j < l; j++) {
-        if (mask_get(eq->mask, j)) {
-            printf("%d", 1);
-        }
-        else {
-            printf(" ");
-        }
-    }
-    printf(":%d\n", eq->amount);
-}
-
-void print_equation_set(Edge* edge, EquationSet* equation_set) {
-    printf("Equations: %d\n", equation_set->equation_c);
-    if (equation_set->split_c == 0) {
-        for(int32_t i = 0; i < equation_set->equation_c; i++) {
-            print_equation(equation_set->equations + i, edge->edge_c);
-        }
-    }
-    else {
-        for(int32_t split_i = 0; split_i < equation_set->split_c; split_i++) {
-            printf("--- Split %d\n", split_i);
-            for(int32_t i = 0; i < equation_set->splits_length[split_i]; i++) {
-                print_equation(equation_set->equations + equation_set->splits_start[split_i] + i, edge->splits_length[split_i]);
-            }
-        }   
-    }
-}
-
-bool is_subequation(Equation* eq, Equation* super_eq) {
+bool is_subequation(Equation *eq, Equation *super_eq) {
+        /**
+     * Returns true if eq is a subequation of super_eq.
+     * 
+     * This function returns true if eq is a subequation of super_eq.
+     * An equation is a sub-equation of another super-equation if every square
+     * in the equation is present in the super equation.
+     * 
+     * @param Equation* sub-equation 
+     * @param Equation* super-equation
+     * @return true if eq is a subequation of super_eq otherwise false
+     */
     if (!mask_overlap(eq->mask, super_eq->mask)) return false;
     for (int32_t i = 0; i < MASK_PARTS; i++) {
         if (eq->mask.v[i] & ~super_eq->mask.v[i]) return false;
@@ -93,18 +73,31 @@ bool is_subequation(Equation* eq, Equation* super_eq) {
     return true;
 }
 
-bool equations_intersect(Equation* eq1, Equation* eq2) {
+bool equations_intersect(Equation *eq1, Equation *eq2) {
+    /**
+     * Returns true if eq1 and eq2 share any common squares.
+     * 
+     * @param Equation* eq1
+     * @param Equation* eq2
+     * @return true if eq1 and eq2 share any squares
+     */
     return mask_overlap(eq1->mask, eq2->mask);
 }
 
-void remove_subequation(Equation* eq, Equation* super_eq) {
+void remove_subequation(Equation *eq, Equation *super_eq) {
+    /**
+     * Removes intersecting squares between eq and super_eq from super_eq.
+     * 
+     * @param Equation *eq1
+     * @param Equation *eq2
+     */
     for (int32_t i = 0; i < MASK_PARTS; i++) {
         super_eq->mask.v[i] &= ~eq->mask.v[i];
     }
     super_eq->amount -= eq->amount;
 }
 
-bool remove_solved(EquationSet* equation_set, FaultStatus* fault_status){
+bool remove_solved(EquationSet *equation_set, FaultStatus *fault_status){
     bool any_changed = false;
 
     for (int32_t i = 0; i < equation_set->equation_c; i++) {
@@ -165,7 +158,7 @@ bool remove_solved(EquationSet* equation_set, FaultStatus* fault_status){
     return any_changed;
 }
 
-bool remove_subequations(EquationSet* equation_set) {
+bool remove_subequations(EquationSet *equation_set) {
     bool any_changed = false;
     for (int32_t i = 0; i < equation_set->equation_c; i++) {
         for (int32_t j = i + 1; j < equation_set->equation_c; j++) {
@@ -184,7 +177,7 @@ bool remove_subequations(EquationSet* equation_set) {
     return any_changed;
 }
 
-FaultStatus reduce(EquationSet* equation_set) {
+FaultStatus reduce(EquationSet *equation_set) {
     FaultStatus fault_status = valid_status;
     bool any_changed = true;
     while (any_changed && !fault_status) {
@@ -195,11 +188,11 @@ FaultStatus reduce(EquationSet* equation_set) {
     return fault_status;
 }
 
-void split_equations(Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap) {
+void split_equations(Edge *edge, EquationSet *equation_set, ProbabilityMap *pmap) {
     int32_t split_labels[MAX_SQUARES] = {0};
 
     // Create variables for search algorithm
-    int32_t queue[200];
+    int32_t queue[MAX_EDGE_SIZE];
     int32_t q;
     bool explored[MAX_SQUARES] = {false};
 
@@ -212,7 +205,7 @@ void split_equations(Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap
         explored[start_eq] = true;
 
         while (q>=0) {
-            if (q >= 200) printf("Queue full - split_equations");
+            if (q >= MAX_EDGE_SIZE) printf("Queue full - split_equations");
             int32_t cur = queue[q];
             q--;
             split_labels[cur] = label;
@@ -303,7 +296,7 @@ void split_equations(Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap
     }
 }
 
-FaultStatus get_equation_set(Board* board, Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap){
+FaultStatus get_equation_set(Board *board, Edge *edge, EquationSet *equation_set, ProbabilityMap *pmap){
     get_base_edge_and_equations(board, edge, equation_set);
 
     FaultStatus fault_status = reduce(equation_set);

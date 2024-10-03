@@ -35,8 +35,8 @@ typedef struct TranspositionTable {
 } TranspositionTable;
 #endif
 
-void get_solver_result(Board* board, Arguments* args, SearchResult* result);
-void get_solver_result_and_board_probabilities(Board* board, Arguments* args, SearchResult* result, double* p_a);
+void get_solver_result(Board* board, Arguments* args, SearchResult* result, double* p_a);
+void get_solver_result_basic(Board* board, Arguments* args, SearchResult* result, double* p_a);
 FaultStatus get_board_probabilities(Board* board, double* p_a);
 
 #endif

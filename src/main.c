@@ -1,7 +1,6 @@
-#include <time.h>
 #include <argp.h>
 
-#include "game.h"
+#include "commands.h"
 #include "common.h"
 
 const char *argp_program_version = "minesolve 0.1";
@@ -11,14 +10,16 @@ static char args_doc[] = "[<BOARD>]";
 
 static struct argp_option options[] = {
     {"file", 'f', "FILE", 0, "Read board from FILE instead of argument or stdin."},
-    {"output", 'o', "FILE", 0, "Output to FILE instead of standard output"},
-    {"width", 'w', "WIDTH", 0, "Width of minesweeper board"},
-    {"height", 'h', "HEIGHT", 0, "Height of minesweeper board"},
-    {"mines", 'm', "MINES", 0, "Number of mines present in minesweeper board"},
-    {"wrapping-borders", 'W', 0, 0, "Set wrapping borders in minesweeper board"},
+    {"output", 'o', "FILE", 0, "Output to FILE instead of standard output."},
+    {"width", 'w', "WIDTH", 0, "Width of minesweeper board."},
+    {"height", 'h', "HEIGHT", 0, "Height of minesweeper board."},
+    {"mines", 'm', "MINES", 0, "Number of mines present in minesweeper board."},
+    {"wrapping-borders", 'W', 0, 0, "Set wrapping borders in minesweeper board."},
     {"config", 'c', "CONFIGURATION", 0, "Use preset configuration for width, height and number of mines: beginner, intermediate, or expert."},
-    {"max-depth", 'd', "MAX_DEPTH", 0, "Maximum depth for solver to search."},
+    {"depth", 'd', "DEPTH", 0, "Maximum depth for solver to search."},
     {"simulate", 's', "NUM", 0, "Let solver play NUM games and output the number of wins."},
+    {"show-board", 'S', 0, 0, "Print out board instead of running solver. If used with --simulate it will print the board after every move."},
+    {"ascii", 'a', 0, 0, "Used with --show-board, specifies that it should print the board without ANSI escape codes or Unicode."},
     {0}};
 
 
@@ -70,6 +71,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     case 's':
         arguments->test_games = atoi(arg);
         break;
+    case 'a':
+        arguments->ascii = true;
+        break;
+    case 'S':
+        arguments->show_board = true;
+        break;
 
     case ARGP_KEY_ARG:
         if (state->arg_num >= 1 ) argp_usage(state); // Too many arguments.
@@ -92,23 +99,25 @@ static struct argp argp = {options, parse_opt, args_doc, doc};
 
 int32_t main(int32_t argc, char** argv)
 {
-    srand(time(NULL));
+    // Initialize random seed
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    srand((uint32_t) ts.tv_nsec);
 
     Arguments arguments = {
         .width = 30,
         .height = 16,
         .mines = 99,
         .wrapping_borders = false,
+
         .test_games = 1000, //EDITED
         .max_depth = 1,
+
+        .show_board = false,
+        .ascii = false,
     };
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-    int32_t wins = 0;
-    for (int32_t i = 0; i < arguments.test_games; i++)
-    {
-        wins += (int32_t) play_game(&arguments);
-    }
-    printf("%d\n", wins);
+    simulate(&arguments);
     exit(0);
 }

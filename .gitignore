@@ -3,6 +3,7 @@
 .vscode/*
 bin/*
 build/*
+doc/*
 *.png
 *.xlsx
 *.py

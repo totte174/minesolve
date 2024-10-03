@@ -142,28 +142,42 @@ FaultStatus get_pmap(Board* board, Edge* edge, ProbabilityMap* pmap) {
     return fault_status;
 }
 
-int32_t pmap_to_board(Board* board, Edge* edge, ProbabilityMap* pmap, double* prob_a) {
+FaultStatus get_pmap_basic(Board* board, Edge* edge, ProbabilityMap* pmap) {
+    /**
+     * This will return a pmap where only equation set logic is used, 
+     * where solved square probabilites will be correct but all edge
+     * squares will have the same probability.
+     */
+    EquationSet equation_set;
+
+    FaultStatus fault_status = get_equation_set(board, edge, &equation_set, pmap);
+    if (fault_status) return fault_status;
+
+    int32_t solved_mines = 0;
+    for (int32_t i = 0; i < edge->edge_solved_c; i++) {
+        solved_mines += (int32_t) pmap->p_solved[i];
+    }
+    double p = 0.0;
+    if (board->unknown_c - edge->edge_solved_c > 0) {
+        p = ((double) (board->mine_c - solved_mines)) / ((double) (board->unknown_c - edge->edge_solved_c));
+    }
+    pmap->p_exterior = p;
+    for (int32_t i = 0; i < edge->edge_c; i++) pmap->p_edge[i] = p;
+
+    return fault_status;
+}
+
+void pmap_to_board(Board* board, Edge* edge, ProbabilityMap* pmap, double* prob_a) {
     for (int32_t i = 0; i < board->w * board->h; i++) {
-        prob_a[i] = 0.0;
+        if (board->known[i]) prob_a[i] = 0.0;
+        else prob_a[i] = pmap->p_exterior;
     }
     for (int32_t i = 0; i < edge->edge_solved_c; i++) {
         prob_a[edge->edge_solved[i]] = pmap->p_solved[i];
     }
-    for (int32_t i = 0; i < edge->exterior_c; i++) {
-        prob_a[edge->exterior[i]] = pmap->p_exterior;
-    }
     for (int32_t i = 0; i < edge->edge_c; i++) {
         prob_a[edge->edge[i]] = pmap->p_edge[i];
     }
-    double best_p = 2;
-    int32_t best_p_pos = -1;
-    for (int32_t i = 0; i < board->w*board->h; i++) {
-        if (prob_a[i] < best_p && !board->known[i]) {
-            best_p = prob_a[i];
-            best_p_pos = i;
-        }
-    }
-    return best_p_pos;
 }
 
 void get_lowest_probability(Board* board, Edge* edge, ProbabilityMap* pmap, 
@@ -184,15 +198,20 @@ void get_lowest_probability(Board* board, Edge* edge, ProbabilityMap* pmap,
         }
     }
 
+    // If exterior probability best, find one with lowest adjacent unknown count
     if (edge->exterior_c > 0 && pmap->p_exterior < *p) {
         *p = pmap->p_exterior;
         int32_t lowest_adjacent_unknown = 9;
-        int32_t adj_c;
-        for (int32_t i = 0; i < edge->exterior_c; i++) {
-            adj_c = get_adjacent_unknown_c(board, edge->exterior[i]);
-            if (adj_c < lowest_adjacent_unknown) {
+        int32_t adj_c, adj[8];
+        for (int32_t p = 0; p < board->w * board->h; p++) {
+            if (board->known[p]) continue;
+            adj_c = get_adjacent(board, p, adj);
+
+            bool is_edge = false;
+            for (int32_t j = 0; j < adj_c; j++) if (board->known[adj[j]]) is_edge = true;
+            if (!is_edge && adj_c < lowest_adjacent_unknown) {
                 lowest_adjacent_unknown = adj_c;
-                *pos = edge->exterior[i];
+                *pos = p;
             }
         }
     }
@@ -223,12 +242,16 @@ int32_t get_best_evaluations(Board* board, Edge* edge, ProbabilityMap* pmap,
     //Find the exterior point with least adjacent unknown (usually corners)
     if (edge->exterior_c > 0) {
         int32_t lowest_adjacent_unknown = 9;
-        int32_t adj_c;
-        for (int32_t i = 0; i < edge->exterior_c; i++) {
-            adj_c = get_adjacent_unknown_c(board, edge->exterior[i]);
-            if (adj_c < lowest_adjacent_unknown) {
+        int32_t adj_c, adj[8];
+        for (int32_t p = 0; p < board->w * board->h; p++) {
+            if (board->known[p]) continue;
+            adj_c = get_adjacent(board, p, adj);
+
+            bool is_edge = false;
+            for (int32_t j = 0; j < adj_c; j++) if (board->known[adj[j]]) is_edge = true;
+            if (!is_edge && adj_c < lowest_adjacent_unknown) {
                 lowest_adjacent_unknown = adj_c;
-                best_pos[best_c] = edge->exterior[i];
+                best_pos[best_c] = p;
             }
         }
         best_p[best_c] = pmap->p_exterior;
@@ -252,8 +275,6 @@ int32_t get_best_evaluations(Board* board, Edge* edge, ProbabilityMap* pmap,
             }
         }
     }
-
-    if (best_p[0] == 0.0 && best_c > 0) best_c = 1;
 
     return best_c;
 }

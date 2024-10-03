@@ -8,23 +8,6 @@
 #include <strings.h>
 #include <stdlib.h>
 
-// ----------- MACRO FUNCTIONS
-
-#define max(a,b)             \
-({                           \
-    __typeof__ (a) _a = (a); \
-    __typeof__ (b) _b = (b); \
-    _a > _b ? _a : _b;       \
-})
-
-#define min(a,b)             \
-({                           \
-    __typeof__ (a) _a = (a); \
-    __typeof__ (b) _b = (b); \
-    _a < _b ? _a : _b;       \
-})
-
-
 // ----------- HARDCODED LIMITATIONS
 
 #define MAX_MINES 256
@@ -50,7 +33,7 @@ typedef struct Arguments
     char board[2*MAX_SQUARES];
     char output_file[512];
     int32_t width, height, mines, test_games, max_depth;
-    bool wrapping_borders;
+    bool wrapping_borders, ascii, show_board;
 } Arguments;
 
 typedef struct Board {
@@ -71,7 +54,6 @@ typedef struct Edge {
     int32_t splits_start[MAX_EDGE_SIZE];
     int32_t split_c;
 
-    int32_t exterior[MAX_SQUARES];
     int32_t exterior_c;
 
     int32_t edge_solved[MAX_EDGE_SIZE];
@@ -88,6 +70,55 @@ typedef struct ProbabilityMap {
 typedef struct Mask {
     uint64_t v[MASK_PARTS];
 } Mask;
+
+
+// ----------- MACRO FUNCTIONS
+
+#define max(a,b)             \
+({                           \
+    __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a > _b ? _a : _b;       \
+})
+
+#define min(a,b)             \
+({                           \
+    __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a < _b ? _a : _b;       \
+})
+
+#define insert_sorted(a, len, elem)         \
+({                                          \
+    for (int32_t i = 0; i < len; i++) {     \
+        if (a[i] > elem) {                  \
+            __typeof__ (elem) temp = elem;  \
+            elem = a[i];                    \
+            a[i] = temp;                    \
+        }                                   \
+    }                                       \
+    a[len] = elem;                          \
+})
+
+#define binary_search(a, len, elem)         \
+({                                          \
+    int32_t result = -1;                    \
+    int32_t l = 0, r = 0;                   \
+    while (l <= r) {                        \
+        int32_t m = (l + r) / 2;            \
+        if (a[m] < elem) {                  \
+            r = m + 1;                      \
+        } else if (a[m] > elem) {           \
+            l = m - 1;                      \
+        } else {                            \
+            result = m;                     \
+            break;                          \
+        }                                   \
+    }                                       \
+    result;                                 \
+})
+
+
 
 // ----------- MASK MACRO FUNCTIONS
 

@@ -127,7 +127,7 @@ void tree_search(Board* board, SolverSearchState* state,
 
 
     // If last step of search, only check for best probability
-    if (state->search_depth + 1 == max_depth) {
+    if (max_depth - state->search_depth == 1) {
         get_lowest_probability(board, edge, pmap, &result->p, &result->best_move);
         #ifdef TRANSPOSITION_TABLE
         TranspositionTableEntry entry = {
@@ -149,13 +149,30 @@ void tree_search(Board* board, SolverSearchState* state,
     int32_t sorted_c = get_best_evaluations(board, edge, pmap, 
                                             sorted_pos, sorted_p);
     
-    if (state->search_depth == 0 && sorted_p[0] == 0.0) {
-        result->p = 0.0;
-        result->best_move = sorted_pos[0];
-        return;
+    if (sorted_p[0] == 0.0){
+        if (state->search_depth == 0) {
+            result->p = 0.0;
+            result->best_move = sorted_pos[0];
+            return;
+        }
+        else {
+            int32_t zero_count = 0;
+            while (zero_count < sorted_c) {
+                if (sorted_p[zero_count] != 0.0) break;
+                zero_count++;
+            }
+            if (zero_count == max_depth - state->search_depth) {
+                result->p = 0.0;
+                result->best_move = sorted_pos[0];
+                return;
+            }
+        }
+        sorted_c = 1;
     }
+    
 
     Board new_board = *board;
+    new_board.unknown_c--;
     Edge new_edge;
     ProbabilityMap new_pmap;
     for (int32_t i = 0; i < sorted_c; i++) {
@@ -167,6 +184,7 @@ void tree_search(Board* board, SolverSearchState* state,
 
         double total_combs = 0;
         double avg_p = 0.0;
+        bool any_computational_limit = false;
         int32_t adjacent_unknown_c = get_adjacent_unknown_c(&new_board, pos);
 
         for (int32_t v = 0; v <= adjacent_unknown_c; v++) {
@@ -176,6 +194,7 @@ void tree_search(Board* board, SolverSearchState* state,
             state_add_position(&new_state, pos, v);
             
             tree_search(&new_board, &new_state, max_depth, &new_result, &new_edge, &new_pmap);
+            if (new_result.fault_status == fault_computational_limit) any_computational_limit = true;
             if (!new_result.fault_status) {
                 avg_p += new_result.p * new_result.total_combinations;
                 total_combs += new_result.total_combinations;
@@ -183,7 +202,8 @@ void tree_search(Board* board, SolverSearchState* state,
         }
 
         if (total_combs == 0.0) {
-            result->fault_status = fault_invalid_board;
+            if (any_computational_limit) result->fault_status = fault_computational_limit;
+            else result->fault_status = fault_invalid_board;
             break;
         }
 
@@ -206,7 +226,7 @@ void tree_search(Board* board, SolverSearchState* state,
     #endif
 }
 
-void get_solver_result(Board* board, Arguments* args, SearchResult* result) {
+void get_solver_result(Board* board, Arguments* args, SearchResult* result, double* p_a) {
     #ifdef TRANSPOSITION_TABLE
     transposition_table_init();
     #endif
@@ -222,34 +242,22 @@ void get_solver_result(Board* board, Arguments* args, SearchResult* result) {
     static ProbabilityMap pmap;
     state.search_depth = 0;
     tree_search(board, &state, max_depth, result, &edge, &pmap);
+
+    if (p_a != NULL) pmap_to_board(board, &edge, &pmap, p_a);
 
     #ifdef TRANSPOSITION_TABLE
     transposition_table_deinit();
     #endif
 }
 
-void get_solver_result_and_board_probabilities(Board* board, Arguments* args, SearchResult* result, double* p_a) {
-    #ifdef TRANSPOSITION_TABLE
-    transposition_table_init();
-    #endif
-
-    int32_t safe_sqs_left = board->unknown_c - board->mine_c;
-    int32_t max_depth;
-
-    if (board->unknown_c == board->w * board->h) max_depth = 1;
-    else max_depth = min(args->max_depth, safe_sqs_left);
-
-    static SolverSearchState state;
+void get_solver_result_basic(Board* board, Arguments* args, SearchResult* result, double* p_a) {
     static Edge edge;
     static ProbabilityMap pmap;
-    state.search_depth = 0;
-    tree_search(board, &state, max_depth, result, &edge, &pmap);
+    result->fault_status = get_pmap_basic(board, &edge, &pmap);
+    result->total_combinations = 0.0;
+    get_lowest_probability(board, &edge, &pmap, &result->p, &result->best_move);
 
-    pmap_to_board(board, &edge, &pmap, p_a);
-
-    #ifdef TRANSPOSITION_TABLE
-    transposition_table_deinit();
-    #endif
+    if (p_a != NULL) pmap_to_board(board, &edge, &pmap, p_a);
 }
 
 FaultStatus get_board_probabilities(Board* board, double* p_a) {
