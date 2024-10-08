@@ -8,7 +8,7 @@
 #include "equations.h"
 
 #define MIN_PERMUTATIONS (1ULL << 22ULL)
-#define MAX_PERMUTATIONS (1ULL << 27ULL)
+#define MAX_PERMUTATIONS (1ULL << 26ULL)
 
 typedef struct PermutationSet {
     Mask* permutations;
@@ -24,4 +24,5 @@ typedef struct PermutationSet {
 int32_t mine_c(Mask* permutation);
 FaultStatus get_permutation_set(Board* board, Edge* edge, PermutationSet* permutation_set, ProbabilityMap* pmap);
 void permutation_set_deinit(PermutationSet* permutation_set);
+
 #endif

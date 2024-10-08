@@ -205,7 +205,10 @@ void split_equations(Edge *edge, EquationSet *equation_set, ProbabilityMap *pmap
         explored[start_eq] = true;
 
         while (q>=0) {
-            if (q >= MAX_EDGE_SIZE) printf("Queue full - split_equations");
+            if (q >= MAX_EDGE_SIZE) {
+                fprintf(stderr, "Queue full - split_equations");
+                exit(1);
+            }
             int32_t cur = queue[q];
             q--;
             split_labels[cur] = label;

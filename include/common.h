@@ -13,9 +13,10 @@
 #define MAX_MINES 256
 #define MAX_SQUARES 1024
 #define MAX_MINE_C_DIFF 18
-#define MAX_EDGE_SIZE (3*64)
+#define MAX_EDGE_SIZE (3 * 64)
 #define MASK_PARTS (MAX_EDGE_SIZE / 64)
 #define MAX_SEARCH 8
+#define MAX_BUF (MAX_SQUARES * 2)
 //#define TRANSPOSITION_TABLE
 
 // ----------- UNIVERSAL STRUCTS & ENUMS
@@ -30,10 +31,11 @@ typedef enum FaultStatus {
 
 typedef struct Arguments
 {
-    char board[2*MAX_SQUARES];
-    char output_file[512];
+    char buf[MAX_BUF];
+    int32_t buf_size;
+
     int32_t width, height, mines, test_games, max_depth;
-    bool wrapping_borders, ascii, show_board;
+    bool wrapping_borders, ascii, show_board, show_probability;
 } Arguments;
 
 typedef struct Board {

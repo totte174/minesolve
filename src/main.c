@@ -1,4 +1,5 @@
 #include <argp.h>
+#include <unistd.h>
 
 #include "commands.h"
 #include "common.h"
@@ -9,17 +10,20 @@ static char doc[] = "minesolve -- a program to analyze minesweeper boards";
 static char args_doc[] = "[<BOARD>]";
 
 static struct argp_option options[] = {
-    {"file", 'f', "FILE", 0, "Read board from FILE instead of argument or stdin."},
-    {"output", 'o', "FILE", 0, "Output to FILE instead of standard output."},
-    {"width", 'w', "WIDTH", 0, "Width of minesweeper board."},
-    {"height", 'h', "HEIGHT", 0, "Height of minesweeper board."},
-    {"mines", 'm', "MINES", 0, "Number of mines present in minesweeper board."},
-    {"wrapping-borders", 'W', 0, 0, "Set wrapping borders in minesweeper board."},
-    {"config", 'c', "CONFIGURATION", 0, "Use preset configuration for width, height and number of mines: beginner, intermediate, or expert."},
-    {"depth", 'd', "DEPTH", 0, "Maximum depth for solver to search."},
-    {"simulate", 's', "NUM", 0, "Let solver play NUM games and output the number of wins."},
-    {"show-board", 'S', 0, 0, "Print out board instead of running solver. If used with --simulate it will print the board after every move."},
-    {"ascii", 'a', 0, 0, "Used with --show-board, specifies that it should print the board without ANSI escape codes or Unicode."},
+    {"file",                'f', "FILE",            0, "Read board from FILE instead of argument or stdin.", 0},
+
+    {"width",               'w', "WIDTH",           0, "Width of minesweeper board.", 1},
+    {"height",              'h', "HEIGHT",          0, "Height of minesweeper board.", 2},
+    {"mines",               'm', "MINES",           0, "Number of mines present in minesweeper board.", 3},
+    {"wrapping-borders",    'W', 0,                 0, "Set wrapping borders in minesweeper board.", 4},
+    {"config",              'c', "CONFIGURATION",   0, "Use preset configuration for width, height and number of mines: beginner, intermediate, or expert.", 5},
+
+    {"depth",               'd', "DEPTH",           0, "Maximum depth for solver to search.", 6},
+
+    {"simulate",            's', "NUM",             0, "Let solver play NUM games and output the number of wins.", 7},
+    {"show-board",          'S', 0,                 0, "Print out board instead of running solver. If used with --simulate it will print the board after every move.", 8},
+    {"ascii",               'a', 0,                 0, "Used with --show-board, specifies that it should print the board without ANSI escape codes or Unicode.", 9},
+    {"probability",         'p', 0,                 0, "Show mine probability of each square in board.", 10},
     {0}};
 
 
@@ -29,9 +33,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 
     switch (key)
     {
-    case 'o':
-        strcpy(arguments->output_file, arg); // Change so it is not unsafe
-        break;
     case 'w':
         arguments->width = atoi(arg);
         if (arguments->width == 0) argp_usage(state);
@@ -77,15 +78,42 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     case 'S':
         arguments->show_board = true;
         break;
+    case 'f':
+        FILE *file = fopen(arg, "r");
+        if (file) {
+            int32_t n = fread(arguments->buf, 1, sizeof(arguments->buf), file);
+            if (n > 0) arguments->buf_size = n; 
+            else {
+                fprintf(stderr, "File is empty or cannot be read: %s\n", arg);
+                exit(1);
+            }
+        }
+        else {
+            fprintf(stderr, "Cannot read file: %s\n", arg);
+            exit(1);
+        }
+        fclose(file);
+        break;
+    case 'p':
+        arguments->show_probability = true;
+        break;
 
     case ARGP_KEY_ARG:
         if (state->arg_num >= 1 ) argp_usage(state); // Too many arguments.
-        strcpy(arguments->board, arg); // Change so it is not unsafe
+        arguments->buf_size = strlen(arg);
+        if (arguments->buf_size > sizeof(arguments->buf)) argp_usage(state); // String too long
+        strncpy(arguments->buf, arg, sizeof(arguments->buf) - 1);
         break;
 
     case ARGP_KEY_END:
-        if ((arguments->height * arguments->width <= 0) || (arguments->height * arguments->width > MAX_SQUARES)) argp_usage(state);
-        if (arguments->mines <= 0 || arguments->mines > MAX_MINES) argp_usage(state);
+        if ((arguments->height * arguments->width <= 0) || (arguments->height * arguments->width > MAX_SQUARES)) {
+            fprintf(stderr, "Invalid size of board.");
+            exit(1);
+        }
+        if (arguments->mines <= 0 || arguments->mines > MAX_MINES || arguments->mines > arguments->height * arguments->width) {
+            fprintf(stderr, "Invalid number of mines.");
+            exit(1);
+        }
         if (arguments->test_games < 0) argp_usage(state);
         break;
 
@@ -105,19 +133,38 @@ int32_t main(int32_t argc, char** argv)
     srand((uint32_t) ts.tv_nsec);
 
     Arguments arguments = {
+        .buf_size = 0,
+
         .width = 30,
         .height = 16,
         .mines = 99,
         .wrapping_borders = false,
 
-        .test_games = 1000, //EDITED
+        .test_games = 0,
         .max_depth = 1,
 
         .show_board = false,
+        .show_probability = false,
         .ascii = false,
     };
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-    simulate(&arguments);
+    // Read stdin if piped into
+    if (arguments.buf_size == 0 && !isatty(fileno(stdin))) {
+        int32_t n = read(STDIN_FILENO, arguments.buf, sizeof(arguments.buf));
+        if (n > 0) arguments.buf_size = n;
+    }
+
+    if (arguments.test_games != 0) {
+        simulate(&arguments);
+    }
+    else if (arguments.buf_size > 0) {
+        if (arguments.show_board) show_board(&arguments);
+        else if (arguments.show_probability) show_probability(&arguments);
+        else solve_board(&arguments);
+    }
+    else {
+        fprintf(stderr, "No board provided\n");
+    }
     exit(0);
 }

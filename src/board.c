@@ -72,11 +72,7 @@ bool is_edge(Board* board, int32_t p) {
 }
 
 void print_board(Board* board) {
-    printf("+");
-    for (int32_t x = 0; x < board->w; x++) printf("-");
-    printf("+\n");
     for (int32_t y = 0; y < board->h; y++) {
-        printf("|");
         for (int32_t x = 0; x < board->w; x++) {
             if (board->known[y*board->w + x]){
                 if (board->v[y*board->w + x] == 0) printf(" ");
@@ -86,14 +82,11 @@ void print_board(Board* board) {
                 printf(".");
             }
         }
-        printf("|\n");
+        printf("\n");
     }
-    printf("+");
-    for (int32_t x = 0; x < board->w; x++) printf("-");
-    printf("+\n");
 }
 
-void print_board_pretty(Board* board) {
+void print_board_pretty(Board* board, bool move_cursor) {
     static char color_nums[][10] = {
         [0] = " ",
         [1] = "\e[1;94m" "1",
@@ -107,8 +100,10 @@ void print_board_pretty(Board* board) {
         [9] = "\e[0m"    "⬝",
     };
 
-    printf("\e[?25l"); // Make cursor invisible
-    printf("\e[H"); // Move cursor to start
+    if (move_cursor) {
+        printf("\e[?25l"); // Make cursor invisible
+        printf("\e[H"); // Move cursor to start
+    }
     
     printf("┏");
     for (int32_t x = 0; x < board->w; x++) printf("━");
@@ -131,5 +126,5 @@ void print_board_pretty(Board* board) {
     for (int32_t x = 0; x < board->w; x++) printf("━");
     printf("┛\n");
 
-    printf("\e[?25h"); // Make cursor visible
+     if (move_cursor) printf("\e[?25h"); // Make cursor visible
 }
