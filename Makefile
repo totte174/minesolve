@@ -14,6 +14,10 @@ DEBUGFLAGS := -Wall -g
 INC := -I include
 LIBS := -lm
 
+minesolve:
+	@mkdir -p $(BINDIR)
+	$(CC) $(CFLAGS) $(SOURCES) $(INC) -o $(TARGET) $(LIBS)
+
 all: minesolve debug
 
 docs:
@@ -23,10 +27,6 @@ docs:
 profiler:
 	@mkdir -p $(BINDIR)
 	$(CC) $(CFLAGS) $(SOURCES) $(INC) -o $(TARGET) $(LIBS) -pg
-
-minesolve:
-	@mkdir -p $(BINDIR)
-	$(CC) $(CFLAGS) $(SOURCES) $(INC) -o $(TARGET) $(LIBS)
 
 clean:
 	@echo "Cleaning up..."
