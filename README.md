@@ -16,7 +16,7 @@ The solver's performance at various search depths was assessed by playing throug
 | 1            | $`10\;000\;000`$ | $`39.002\%`$ | $`38.972\%`$   | $`39.032\%`$   |
 | 2            | $`10\;000\;000`$ | $`40.272\%`$ | $`40.241\%`$   | $`40.302\%`$   |
 | 3            | $`1\;000\;000`$  | $`40.680\%`$ | $`40.584\%`$   | $`40.777\%`$   |
-| 4            | $`100\;000`$     | $`40.551\%`$ | $`40.247\%`$   | $`40.856\%`$   |
+| 4            | $`1\;000\;000`$  | $`40.801\%`$ | $`40.705\%`$   | $`40.896\%`$   |
 | 5            | -                | -            | -              | -              |
 
 \*Lower- and upper confidence bounds were calculated using the [***Jeffreys interval***](https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Jeffreys_interval) using $`\alpha=0.05`$.
