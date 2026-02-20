@@ -2,7 +2,6 @@
 CC := gcc
 SRCDIR := src
 BINDIR := bin
-DOCDIR := doc
 TARGET := $(BINDIR)/minesolve
 DEBUGTARGET := $(BINDIR)/minesolve-debug
 SRCEXT := c
@@ -20,17 +19,13 @@ minesolve:
 
 all: minesolve debug
 
-docs:
-	@mkdir -p $(DOCDIR)
-	doxygen Doxyfile
-
 profiler:
 	@mkdir -p $(BINDIR)
 	$(CC) $(CFLAGS) $(SOURCES) $(INC) -o $(TARGET) $(LIBS) -pg
 
 clean:
 	@echo "Cleaning up..."
-	$(RM) -r $(BINDIR) $(DOCDIR)
+	$(RM) -r $(BINDIR)
 
 debug:
 	@mkdir -p $(BINDIR)
