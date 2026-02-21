@@ -110,7 +110,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
             fprintf(stderr, "Invalid size of board.");
             exit(1);
         }
-        if (arguments->mines <= 0 || arguments->mines > MAX_MINES || arguments->mines > arguments->height * arguments->width) {
+        if (arguments->mines <= 0 || arguments->mines > MAX_SQUARES || arguments->mines > arguments->height * arguments->width) {
             fprintf(stderr, "Invalid number of mines.");
             exit(1);
         }

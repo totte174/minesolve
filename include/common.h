@@ -10,7 +10,6 @@
 
 // ----------- HARDCODED LIMITATIONS
 
-#define MAX_MINES 256
 #define MAX_SQUARES 1024
 #define MAX_MINE_C_DIFF 18
 #define MAX_EDGE_SIZE (3 * 64)

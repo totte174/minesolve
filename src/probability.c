@@ -39,7 +39,7 @@ FaultStatus get_pmap(Board* board, Edge* edge, ProbabilityMap* pmap) {
     int32_t total_mine_c_max = solved_mines;
     for (int32_t split_i = 0; split_i < permutation_set.split_c; split_i++) 
     {
-        split_mine_c_min[split_i] = MAX_MINES;
+        split_mine_c_min[split_i] = MAX_SQUARES;
         split_mine_c_max[split_i] = 0;
         for (int32_t i = 0; i < permutation_set.splits_length[split_i]; i++){
             Mask* perm = permutation_set.permutations + permutation_set.splits_start[split_i] + i;
