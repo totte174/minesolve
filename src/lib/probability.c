@@ -6,9 +6,9 @@ double choose(double n, double k) {
     return (n * choose(n - 1, k - 1)) / k;
 }
 
-FaultStatus get_pmap(Board* board, Edge* edge, ProbabilityMap* pmap) {
+MsStatus get_pmap(MsBoard* board, Edge* edge, ProbabilityMap* pmap) {
     static PermutationSet permutation_set;
-    FaultStatus fault_status = valid_status;
+    MsStatus fault_status = MS_OK;
     fault_status = get_permutation_set(board, edge, &permutation_set, pmap);
     if (fault_status) {
         permutation_set_deinit(&permutation_set);
@@ -21,7 +21,7 @@ FaultStatus get_pmap(Board* board, Edge* edge, ProbabilityMap* pmap) {
 
     if(n < 0) {
         permutation_set_deinit(&permutation_set);
-        fault_status = fault_invalid_board;
+        fault_status = MS_ERR_INVALID_BOARD;
         return fault_status;
     }
 
@@ -44,12 +44,13 @@ FaultStatus get_pmap(Board* board, Edge* edge, ProbabilityMap* pmap) {
         for (int32_t i = 0; i < permutation_set.splits_length[split_i]; i++){
             Mask* perm = permutation_set.permutations + permutation_set.splits_start[split_i] + i;
             
-            split_mine_c_min[split_i] = min(split_mine_c_min[split_i], mine_c(perm));
-            split_mine_c_max[split_i] = max(split_mine_c_max[split_i], mine_c(perm));
+            int32_t mc = mine_c(perm);
+            split_mine_c_min[split_i] = min(split_mine_c_min[split_i], mc);
+            split_mine_c_max[split_i] = max(split_mine_c_max[split_i], mc);
         }
         if (split_mine_c_max[split_i] < split_mine_c_min[split_i]) { //Not valid permutation in split -> not valid pmap
             permutation_set_deinit(&permutation_set);
-            fault_status = fault_invalid_board;
+            fault_status = MS_ERR_INVALID_BOARD;
             return fault_status;
         }
         total_mine_c_min += split_mine_c_min[split_i];
@@ -58,17 +59,23 @@ FaultStatus get_pmap(Board* board, Edge* edge, ProbabilityMap* pmap) {
 
     if (total_mine_c_max - total_mine_c_min >= MAX_MINE_C_DIFF) {
         permutation_set_deinit(&permutation_set);
-        fault_status = fault_internal_limit;
+        fault_status = MS_ERR_INTERNAL_LIMIT;
         return fault_status;
     }
-    double rel_mine_c_p_edge[MAX_MINE_C_DIFF][MAX_EDGE_SIZE] = {0};
+    static double rel_mine_c_p_edge[MAX_MINE_C_DIFF][MAX_EDGE_SIZE];
+    int32_t range = total_mine_c_max - total_mine_c_min;
+    for (int32_t r = 0; r <= range; r++)
+        memset(rel_mine_c_p_edge[r], 0, sizeof(double) * edge->edge_c);
     double rel_mine_c_total_combs[MAX_MINE_C_DIFF] = {0};
     rel_mine_c_total_combs[0] = 1;
     int32_t cur_max_rel_mine_c = 0;
 
     for (int32_t split_i = 0; split_i < permutation_set.split_c; split_i++) {
-        double split_rel_mine_c_p_edge[MAX_MINE_C_DIFF][MAX_EDGE_SIZE] = {0};
-        double split_rel_mine_c_total_combs[MAX_MINE_C_DIFF] = {0};        
+        static double split_rel_mine_c_p_edge[MAX_MINE_C_DIFF][MAX_EDGE_SIZE];
+        int32_t split_range = split_mine_c_max[split_i] - split_mine_c_min[split_i];
+        for (int32_t r = 0; r <= split_range; r++)
+            memset(split_rel_mine_c_p_edge[r], 0, sizeof(double) * edge->edge_c);
+        double split_rel_mine_c_total_combs[MAX_MINE_C_DIFF] = {0};
 
         for (int32_t i = 0; i < permutation_set.splits_length[split_i]; i++) {
             Mask* perm = permutation_set.permutations + permutation_set.splits_start[split_i] + i;
@@ -83,7 +90,7 @@ FaultStatus get_pmap(Board* board, Edge* edge, ProbabilityMap* pmap) {
             }    
         }
 
-        double temp_rel_mine_c_p_edge[MAX_MINE_C_DIFF][MAX_EDGE_SIZE];
+        static double temp_rel_mine_c_p_edge[MAX_MINE_C_DIFF][MAX_EDGE_SIZE];
         double temp_rel_mine_c_total_combs[MAX_MINE_C_DIFF];
         for (int32_t rel_mine_c = 0; rel_mine_c <= cur_max_rel_mine_c; rel_mine_c++) {
             for (int32_t i = 0; i < edge->edge_c; i++) {
@@ -128,7 +135,7 @@ FaultStatus get_pmap(Board* board, Edge* edge, ProbabilityMap* pmap) {
 
     if (pmap->comb_total == 0) { //No valid permutations
         permutation_set_deinit(&permutation_set);
-        fault_status = fault_invalid_board;
+        fault_status = MS_ERR_INVALID_BOARD;
         return fault_status;
     }
 
@@ -142,7 +149,7 @@ FaultStatus get_pmap(Board* board, Edge* edge, ProbabilityMap* pmap) {
     return fault_status;
 }
 
-FaultStatus get_pmap_basic(Board* board, Edge* edge, ProbabilityMap* pmap) {
+MsStatus get_pmap_basic(MsBoard* board, Edge* edge, ProbabilityMap* pmap) {
     /**
      * This will return a pmap where only equation set logic is used, 
      * where solved square probabilites will be correct but all edge
@@ -150,7 +157,7 @@ FaultStatus get_pmap_basic(Board* board, Edge* edge, ProbabilityMap* pmap) {
      */
     EquationSet equation_set;
 
-    FaultStatus fault_status = get_equation_set(board, edge, &equation_set, pmap);
+    MsStatus fault_status = get_equation_set(board, edge, &equation_set, pmap);
     if (fault_status) return fault_status;
 
     int32_t solved_mines = 0;
@@ -167,7 +174,7 @@ FaultStatus get_pmap_basic(Board* board, Edge* edge, ProbabilityMap* pmap) {
     return fault_status;
 }
 
-void pmap_to_board(Board* board, Edge* edge, ProbabilityMap* pmap, double* prob_a) {
+void pmap_to_board(MsBoard* board, Edge* edge, ProbabilityMap* pmap, double* prob_a) {
     for (int32_t i = 0; i < board->w * board->h; i++) {
         if (board->known[i]) prob_a[i] = 0.0;
         else prob_a[i] = pmap->p_exterior;
@@ -180,7 +187,7 @@ void pmap_to_board(Board* board, Edge* edge, ProbabilityMap* pmap, double* prob_
     }
 }
 
-void get_lowest_probability(Board* board, Edge* edge, ProbabilityMap* pmap, 
+void get_lowest_probability(MsBoard* board, Edge* edge, ProbabilityMap* pmap, 
                             double* p, int32_t* pos) {
     *p = 1.0;
     for (int32_t i = 0; i < edge->edge_solved_c; i++) {
@@ -217,7 +224,7 @@ void get_lowest_probability(Board* board, Edge* edge, ProbabilityMap* pmap,
     }
 }
 
-int32_t get_best_evaluations(Board* board, Edge* edge, ProbabilityMap* pmap, 
+int32_t get_best_evaluations(MsBoard* board, Edge* edge, ProbabilityMap* pmap, 
                              int32_t* best_pos, double* best_p) {
     // If solved safe position, return only that position
     for (int32_t i = 0; i < edge->edge_solved_c; i++) {

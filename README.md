@@ -2,43 +2,117 @@
 minesolve
 </h1>
 <p align="center">
-A highly optimized Minesweeper solver implemented in C designed for efficiency and high win rates.
+A highly optimized Minesweeper solver implemented in C, designed for efficiency and high win rates.
 </p>
 <p align="center">
 <img src="./assets/gif/simulate.gif">
 </p>
 
-## Performance of solver
-The solver's performance at various search depths was assessed by playing through millions of randomly generated __expert__ ($`30\times16`$, 99 mines) Minesweeper games. The results are summarized in the table below.
+## Performance
 
-| Search depth | Games played     | Winrate      | Winrate LCB*   | Winrate UCB*   |
-|     :-:      |     :-:          |     :-:      |     :-:        |     :-:            |
+Win rates were measured over millions of randomly generated **expert** ($`30\times16`$, 99 mines) games.
+
+| Search depth | Games played     | Win rate     | Win rate LCB\* | Win rate UCB\* |
+|     :-:      |     :-:          |     :-:      |     :-:        |     :-:        |
 | 1            | $`10\;000\;000`$ | $`39.002\%`$ | $`38.972\%`$   | $`39.032\%`$   |
 | 2            | $`10\;000\;000`$ | $`40.272\%`$ | $`40.241\%`$   | $`40.302\%`$   |
 | 3            | $`1\;000\;000`$  | $`40.680\%`$ | $`40.584\%`$   | $`40.777\%`$   |
 | 4            | $`1\;000\;000`$  | $`40.801\%`$ | $`40.705\%`$   | $`40.896\%`$   |
-| 5            | -                | -            | -              | -              |
 
-\*Lower- and upper confidence bounds were calculated using the [***Jeffreys interval***](https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Jeffreys_interval) using $`\alpha=0.05`$.
+\*Confidence bounds use the [Jeffreys interval](https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval#Jeffreys_interval) with $`\alpha=0.05`$.
 
-Thanks to significant optimizations, the solver can solve boards very quickly at lower search depths. For example, completing a full __expert__ Minesweeper game with a search depth of __1__ takes approximately $`\sim 2.20`$ __ms__. However, as search depth increases, the computation time grows exponentially, taking approximately $`\sim 830`$ __ms__ to complete a game at search depth __4__.
+Computation time scales exponentially with depth — a full expert game takes ~2.2 ms at depth 1 and ~830 ms at depth 4.
 
-## Building and running **minesolve**
+## Building
+
+Requires **GCC** or **Clang** and **CMake ≥ 3.15**.
+
 ```sh
-$ make minesolve
-$ ./bin/minesolve --simulate=1000
-387
-```
-Requires ```gcc``` (or [w64devkit](https://github.com/skeeto/w64devkit/releases/) on Windows) to compile (no external libraries needed).
-
-## Running **minesolve** using Docker
-```sh
-$ docker build -t totte174/minesolve .
-$ docker run totte174/minesolve --simulate=1000
-391
+cmake -B build
+make -C build
 ```
 
-## Currently working on
-- work on CLI to allow analysis of boards (right now it can only simulate full games)
-- generalize to N-dimensional minesweeper
-- allow boards with wrapping edges
+This produces three build artifacts:
+
+| Artifact | Description |
+|---|---|
+| `build/minesolve` | CLI binary |
+| `build/libminesolve.a` | Static library |
+| `build/libminesolve.so` | Shared library |
+
+### Makefile shortcuts
+
+```sh
+make          # configure + build (Release)
+make debug    # configure + build (Debug)
+make lib      # build library targets only
+make install  # install to system (CMAKE_INSTALL_PREFIX)
+make clean    # remove build directory
+```
+
+### Optional: profiling build
+
+```sh
+cmake -B build -DMINESOLVE_ENABLE_PROFILING=ON
+make -C build
+```
+
+## CLI usage
+
+```
+Usage: minesolve [OPTION...] [BOARD]
+```
+
+### Board configuration
+
+| Option | Description |
+|---|---|
+| `-c beginner\|intermediate\|expert` | Use a preset (9×9/10, 16×16/40, 30×16/99) |
+| `-w N`, `-h N`, `-m N` | Width, height, mine count |
+| `-W` | Enable wrapping borders |
+
+### Input
+
+A board can be supplied via:
+
+```sh
+minesolve -f board.txt          # file
+minesolve < board.txt           # stdin
+minesolve "2...21112222..."     # inline argument
+```
+
+**Board format:** digits `0`–`8` for revealed squares, space for revealed 0, `.`/`x`/`?` for unknown, newlines as row separators.
+
+### Actions
+
+| Option | Description |
+|---|---|
+| *(default)* | Print `(x, y)` of the best square to reveal |
+| `-p` | Print per-square mine probability grid |
+| `-S` | Display the board |
+| `-s N` | Simulate N games and print the win count |
+| `-d N` | Search depth 1–8 (default: 1) |
+| `-a` | Plain ASCII output (no ANSI / Unicode) |
+
+### Examples
+
+```sh
+# Solve a board from a file at depth 2
+minesolve --config=expert --depth=2 -f board.txt
+
+# Show mine probabilities
+minesolve --config=expert --probability < board.txt
+
+# Run 1000 simulated expert games
+minesolve --config=expert --simulate=1000
+
+# Watch the solver play in the terminal
+minesolve --config=expert --simulate=10 --show-board
+```
+
+## Docker
+
+```sh
+docker build -t minesolve .
+docker run minesolve --simulate=1000
+```

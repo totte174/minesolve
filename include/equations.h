@@ -20,6 +20,6 @@ typedef struct EquationSet {
     Mask solved_mines;
 } EquationSet;
 
-FaultStatus get_equation_set(Board* board, Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap);
+MsStatus get_equation_set(MsBoard* board, Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap);
 
 #endif

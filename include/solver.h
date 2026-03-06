@@ -11,20 +11,14 @@ typedef struct SolverSearchState {
     int32_t prev_val[MAX_SEARCH];
 } SolverSearchState;
 
-typedef struct SearchResult {
-    double p;
-    double total_combinations;
-    int32_t best_move;
-    FaultStatus fault_status;
-} SearchResult;
-
 #ifdef TRANSPOSITION_TABLE
 #define HASH_R 31
 #define HASHTABLE_SIZE 8192*4
 
 typedef struct TranspositionTableEntry {
     SolverSearchState state;
-    SearchResult result;
+    MsResult result;
+    double total_combinations;
     int32_t next;
 } TranspositionTableEntry;
 
@@ -35,8 +29,8 @@ typedef struct TranspositionTable {
 } TranspositionTable;
 #endif
 
-void get_solver_result(Board* board, Arguments* args, SearchResult* result, double* p_a);
-void get_solver_result_basic(Board* board, Arguments* args, SearchResult* result, double* p_a);
-FaultStatus get_board_probabilities(Board* board, double* p_a);
+void get_solver_result(MsBoard* board, int32_t max_depth, MsResult* result, double* p_a);
+void get_solver_result_basic(MsBoard* board, MsResult* result, double* p_a);
+MsStatus get_board_probabilities(MsBoard* board, double* p_a);
 
 #endif

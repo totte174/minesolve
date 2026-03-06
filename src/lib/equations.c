@@ -1,6 +1,6 @@
 #include "equations.h"
 
-void get_base_edge_and_equations(Board *board, Edge *edge, EquationSet *equation_set) {
+void get_base_edge_and_equations(MsBoard *board, Edge *edge, EquationSet *equation_set) {
     /**
      * Initializes Edge and EquationSet.
      * 
@@ -8,7 +8,7 @@ void get_base_edge_and_equations(Board *board, Edge *edge, EquationSet *equation
      * Creates one equation in equation set for every known square that has adjacent
      * unknown squares.
      * 
-     * @param Board* current board to initialize edge and equation set from.
+     * @param MsBoard* current board to initialize edge and equation set from.
      * @param Edge* edge to initialize.
      * @param EquationSet* equation_set equation set to create equations for and initialize.
      */
@@ -23,6 +23,8 @@ void get_base_edge_and_equations(Board *board, Edge *edge, EquationSet *equation
     mask_reset(equation_set->solved_mask);
     mask_reset(equation_set->solved_mines);
 
+    static int32_t edge_index[MAX_SQUARES];  // 0 = absent; N+1 = index N
+
     for (int32_t p = 0; p < board->w * board->h; p++) {
         if (board->known[p]){
             int32_t adj[8];
@@ -32,16 +34,11 @@ void get_base_edge_and_equations(Board *board, Edge *edge, EquationSet *equation
                 mask_reset(equation->mask);
                 equation->amount = board->v[p];
 
-                int32_t adj[8];
-                int32_t adj_c = get_adjacent_unknown(board, p, adj);
-
                 for (int32_t j = 0; j < adj_c; j++) {
-                    int32_t ind = -1;
-                    for (int32_t k = 0; k < edge->edge_c; k++) {
-                        if (edge->edge[k] == adj[j]) ind = k;
-                    }
-                    if (ind != -1) mask_set(equation->mask, ind, 1);
+                    int32_t ind = edge_index[adj[j]] - 1;
+                    if (ind >= 0) mask_set(equation->mask, ind, 1);
                     else {
+                        edge_index[adj[j]] = edge->edge_c + 1;
                         edge->edge[edge->edge_c] = adj[j];
                         mask_set(equation->mask, edge->edge_c, 1);
                         edge->edge_c++;
@@ -51,27 +48,10 @@ void get_base_edge_and_equations(Board *board, Edge *edge, EquationSet *equation
             }
         }
     }
+    for (int32_t i = 0; i < edge->edge_c; i++) edge_index[edge->edge[i]] = 0;
     edge->exterior_c = board->unknown_c - edge->edge_c;
 }
 
-bool is_subequation(Equation *eq, Equation *super_eq) {
-        /**
-     * Returns true if eq is a subequation of super_eq.
-     * 
-     * This function returns true if eq is a subequation of super_eq.
-     * An equation is a sub-equation of another super-equation if every square
-     * in the equation is present in the super equation.
-     * 
-     * @param Equation* sub-equation 
-     * @param Equation* super-equation
-     * @return true if eq is a subequation of super_eq otherwise false
-     */
-    if (!mask_overlap(eq->mask, super_eq->mask)) return false;
-    for (int32_t i = 0; i < MASK_PARTS; i++) {
-        if (eq->mask.v[i] & ~super_eq->mask.v[i]) return false;
-    }
-    return true;
-}
 
 bool equations_intersect(Equation *eq1, Equation *eq2) {
     /**
@@ -97,24 +77,24 @@ void remove_subequation(Equation *eq, Equation *super_eq) {
     super_eq->amount -= eq->amount;
 }
 
-bool remove_solved(EquationSet *equation_set, FaultStatus *fault_status){
+bool remove_solved(EquationSet *equation_set, MsStatus *fault_status){
     bool any_changed = false;
 
     for (int32_t i = 0; i < equation_set->equation_c; i++) {
         Equation* eq = equation_set->equations + i;
-        if (eq->amount > mask_count(eq->mask) || eq->amount < 0){
+        if (eq->amount < 0 || (uint64_t)eq->amount > mask_count(eq->mask)){
             // Contradiction, no valid permutations can satisfy this equation
-            *fault_status = fault_invalid_board;
+            *fault_status = MS_ERR_INVALID_BOARD;
             return false;
         }
 
-        if (mask_count(eq->mask) == eq->amount){ 
+        if (mask_count(eq->mask) == (uint64_t)eq->amount){
             //All unknown in equation are mines
 
             for (int32_t j = 0; j < MASK_PARTS; j++) {
                 if (~equation_set->solved_mines.v[j] & equation_set->solved_mask.v[j] & eq->mask.v[j]) { 
                     // Contradiction, same square is both solved 1 and solved 0
-                    *fault_status = fault_invalid_board;
+                    *fault_status = MS_ERR_INVALID_BOARD;
                     return false;
                 }
 
@@ -132,7 +112,7 @@ bool remove_solved(EquationSet *equation_set, FaultStatus *fault_status){
             for (int32_t j = 0; j < MASK_PARTS; j++) {
                 if (equation_set->solved_mines.v[j] & equation_set->solved_mask.v[j] & eq->mask.v[j]) { 
                     // Contradiction, same square is both solved 1 and solved 0
-                    *fault_status = fault_invalid_board;
+                    *fault_status = MS_ERR_INVALID_BOARD;
                     return false;
                 }
                 equation_set->solved_mask.v[j] |= eq->mask.v[j];
@@ -163,22 +143,21 @@ bool remove_subequations(EquationSet *equation_set) {
     for (int32_t i = 0; i < equation_set->equation_c; i++) {
         for (int32_t j = i + 1; j < equation_set->equation_c; j++) {
             if (mask_overlap(equation_set->equations[i].mask, equation_set->equations[j].mask)) {
-                if (is_subequation(equation_set->equations + i, equation_set->equations + j)){
-                    remove_subequation(equation_set->equations + i, equation_set->equations + j);
-                    any_changed = true;
+                bool i_sub_j = true, j_sub_i = true;
+                for (int32_t k = 0; k < MASK_PARTS; k++) {
+                    if (equation_set->equations[i].mask.v[k] & ~equation_set->equations[j].mask.v[k]) i_sub_j = false;
+                    if (equation_set->equations[j].mask.v[k] & ~equation_set->equations[i].mask.v[k]) j_sub_i = false;
                 }
-                if (is_subequation(equation_set->equations + j, equation_set->equations + i)){
-                    remove_subequation(equation_set->equations + j, equation_set->equations + i);
-                    any_changed = true;
-                }
+                if (i_sub_j) { remove_subequation(equation_set->equations + i, equation_set->equations + j); any_changed = true; }
+                if (j_sub_i) { remove_subequation(equation_set->equations + j, equation_set->equations + i); any_changed = true; }
             }
         }
     }
     return any_changed;
 }
 
-FaultStatus reduce(EquationSet *equation_set) {
-    FaultStatus fault_status = valid_status;
+MsStatus reduce(EquationSet *equation_set) {
+    MsStatus fault_status = MS_OK;
     bool any_changed = true;
     while (any_changed && !fault_status) {
         any_changed = false;
@@ -299,10 +278,10 @@ void split_equations(Edge *edge, EquationSet *equation_set, ProbabilityMap *pmap
     }
 }
 
-FaultStatus get_equation_set(Board *board, Edge *edge, EquationSet *equation_set, ProbabilityMap *pmap){
+MsStatus get_equation_set(MsBoard *board, Edge *edge, EquationSet *equation_set, ProbabilityMap *pmap){
     get_base_edge_and_equations(board, edge, equation_set);
 
-    FaultStatus fault_status = reduce(equation_set);
+    MsStatus fault_status = reduce(equation_set);
     if (fault_status) return fault_status;
 
     split_equations(edge, equation_set, pmap);

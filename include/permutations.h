@@ -22,7 +22,7 @@ typedef struct PermutationSet {
 } PermutationSet;
 
 int32_t mine_c(Mask* permutation);
-FaultStatus get_permutation_set(Board* board, Edge* edge, PermutationSet* permutation_set, ProbabilityMap* pmap);
+MsStatus get_permutation_set(MsBoard* board, Edge* edge, PermutationSet* permutation_set, ProbabilityMap* pmap);
 void permutation_set_deinit(PermutationSet* permutation_set);
 
 #endif

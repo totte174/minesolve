@@ -1,11 +1,22 @@
-FROM debian
+# Build stage
+FROM debian:bookworm-slim AS builder
 
-COPY ./src /app/src/
-COPY ./include /app/include/
-COPY ./Makefile /app/
-WORKDIR /app
-RUN apt update
-RUN apt install build-essential -y
-RUN make minesolve
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+    && rm -rf /var/lib/apt/lists/*
 
-ENTRYPOINT [ "/app/bin/minesolve" ]
+WORKDIR /src
+COPY CMakeLists.txt .
+COPY include/ include/
+COPY src/ src/
+
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --parallel
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+COPY --from=builder /src/build/minesolve /usr/local/bin/minesolve
+
+ENTRYPOINT ["minesolve"]

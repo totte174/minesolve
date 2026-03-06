@@ -8,45 +8,19 @@
 #include <strings.h>
 #include <stdlib.h>
 
+#include "minesolve.h"
+
 // ----------- HARDCODED LIMITATIONS
 
-#define MAX_SQUARES 1024
+#define MAX_SQUARES     MS_MAX_SQUARES   /* 1024 */
+#define MAX_SEARCH      MS_MAX_DEPTH     /* 8    */
 #define MAX_MINE_C_DIFF 18
-#define MAX_EDGE_SIZE (3 * 64)
-#define MASK_PARTS (MAX_EDGE_SIZE / 64)
-#define MAX_SEARCH 8
-#define MAX_BUF (MAX_SQUARES * 2)
+#define MAX_EDGE_SIZE   (3 * 64)
+#define MASK_PARTS      (MAX_EDGE_SIZE / 64)
+#define MAX_BUF         (MAX_SQUARES * 2)
 //#define TRANSPOSITION_TABLE
 
-// ----------- UNIVERSAL STRUCTS & ENUMS
-
-typedef enum FaultStatus {
-    valid_status = 0u,
-    fault_computational_limit,
-    fault_internal_limit,
-    fault_invalid_board,
-    fault_unknown,
-} FaultStatus;
-
-typedef struct Arguments
-{
-    char buf[MAX_BUF];
-    int32_t buf_size;
-
-    int32_t width, height, mines, test_games, max_depth;
-    bool wrapping_borders, ascii, show_board, show_probability;
-} Arguments;
-
-typedef struct Board {
-    int32_t w;
-    int32_t h;
-    int32_t mine_c;
-    int32_t unknown_c;
-    int32_t v[MAX_SQUARES];
-    bool known[MAX_SQUARES];
-    bool mines[MAX_SQUARES];
-    bool wrapping_borders;
-} Board;
+// ----------- INTERNAL STRUCTS
 
 typedef struct Edge {
     int32_t edge[MAX_EDGE_SIZE];

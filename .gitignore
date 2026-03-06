@@ -3,6 +3,7 @@
 .vscode/*
 bin/*
 build/*
+build-wasm/*
 doc/*
 *.png
 *.xlsx
