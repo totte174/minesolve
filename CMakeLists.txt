@@ -38,7 +38,7 @@ set(LIB_SOURCES
     src/lib/board.c
     src/lib/solver.c
     src/lib/equations.c
-    src/lib/permutations.c
+    src/lib/solutions.c
     src/lib/probability.c
     src/lib/minesolve.c
 )

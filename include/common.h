@@ -12,34 +12,34 @@
 
 // ----------- HARDCODED LIMITATIONS
 
-#define MAX_SQUARES     MS_MAX_SQUARES   /* 1024 */
-#define MAX_SEARCH      MS_MAX_DEPTH     /* 8    */
-#define MAX_MINE_C_DIFF 18
-#define MAX_EDGE_SIZE   (3 * 64)
-#define MASK_PARTS      (MAX_EDGE_SIZE / 64)
-#define MAX_BUF         (MAX_SQUARES * 2)
+#define MAX_SQUARES      MS_MAX_SQUARES   /* 1024 */
+#define MAX_SEARCH       MS_MAX_DEPTH     /* 8    */
+#define MAX_MINE_RANGE   18
+#define MAX_FRONTIER_SIZE (3 * 64)
+#define MASK_PARTS       (MAX_FRONTIER_SIZE / 64)
+#define MAX_BUF          (MAX_SQUARES * 2)
 //#define TRANSPOSITION_TABLE
 
 // ----------- INTERNAL STRUCTS
 
-typedef struct Edge {
-    int32_t edge[MAX_EDGE_SIZE];
-    int32_t edge_c;
-    int32_t splits_length[MAX_EDGE_SIZE];
-    int32_t splits_start[MAX_EDGE_SIZE];
-    int32_t split_c;
+typedef struct Frontier {
+    int32_t frontier[MAX_FRONTIER_SIZE];
+    int32_t frontier_c;
+    int32_t group_length[MAX_FRONTIER_SIZE];
+    int32_t group_start[MAX_FRONTIER_SIZE];
+    int32_t group_c;
 
-    int32_t exterior_c;
+    int32_t unconstrained_c;
 
-    int32_t edge_solved[MAX_EDGE_SIZE];
-    int32_t edge_solved_c;
-} Edge;
+    int32_t solved[MAX_FRONTIER_SIZE];
+    int32_t solved_c;
+} Frontier;
 
 typedef struct ProbabilityMap {
-    double comb_total;
-    double p_edge[MAX_EDGE_SIZE];
-    double p_solved[MAX_EDGE_SIZE];
-    double p_exterior;
+    double total_weight;
+    double p_frontier[MAX_FRONTIER_SIZE];
+    double p_solved[MAX_FRONTIER_SIZE];
+    double p_unconstrained;
 } ProbabilityMap;
 
 typedef struct Mask {

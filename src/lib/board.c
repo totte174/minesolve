@@ -1,19 +1,20 @@
 #include "board.h"
 
-// Global adjacency table — valid for a fixed (w, h, wrapping_borders) geometry.
+// Global adjacency table — valid for a fixed (w, h, wrapping) geometry.
 // Rebuilt automatically when board_init is called with new dimensions.
 static int32_t s_adj[MAX_SQUARES][8];
 static int8_t  s_adj_c[MAX_SQUARES];
 static int32_t s_adj_w = -1, s_adj_h = -1;
 static bool    s_adj_wrapping = false;
 
+/* Precomputes the adjacency table for the given board geometry. */
 static void build_adj_table(MsBoard* board) {
-    s_adj_w = board->w; s_adj_h = board->h; s_adj_wrapping = board->wrapping_borders;
+    s_adj_w = board->w; s_adj_h = board->h; s_adj_wrapping = board->wrapping;
 
     for (int32_t p = 0; p < board->w * board->h; p++) {
         int32_t i = 0;
         int32_t x = p % board->w, y = p / board->w;
-        if (board->wrapping_borders) {
+        if (board->wrapping) {
             int32_t w = board->w, h = board->h;
             int32_t xl = (x == 0)   ? w-1 : x-1,  xr = (x == w-1) ? 0   : x+1;
             int32_t yu = (y == 0)   ? h-1 : y-1,  yd = (y == h-1) ? 0   : y+1;
@@ -43,12 +44,12 @@ static void build_adj_table(MsBoard* board) {
 void board_init(MsBoard* board, int32_t w, int32_t h, int32_t mines, bool wrapping) {
     board->w = w;
     board->h = h;
-    board->mine_c = mines;
-    board->wrapping_borders = wrapping;
-    board->unknown_c = w * h;
+    board->mine_count = mines;
+    board->wrapping = wrapping;
+    board->unrevealed_c = w * h;
     for (int32_t i = 0; i < w * h; i++) {
-        board->known[i] = false;
-        board->v[i] = 0;
+        board->revealed[i] = false;
+        board->hint[i] = 0;
     }
     build_adj_table(board);
 }
@@ -62,19 +63,19 @@ void board_parse(MsBoard* board, const char* buf, int32_t buf_size) {
             if (i % board->w != 0) i = (i / board->w + 1) * board->w;
         }
         else if (c >= '0' && c <= '8') {
-            board->known[i] = true;
-            board->v[i] = (int32_t)(c - '0');
-            board->unknown_c--;
+            board->revealed[i] = true;
+            board->hint[i] = (int32_t)(c - '0');
+            board->unrevealed_c--;
             i++;
         }
         else if (c == ' ') {
-            board->known[i] = true;
-            board->v[i] = 0;
-            board->unknown_c--;
+            board->revealed[i] = true;
+            board->hint[i] = 0;
+            board->unrevealed_c--;
             i++;
         }
         else if (c == '.' || c == 'x' || c == 'X' || c == '?') {
-            board->known[i] = false;
+            board->revealed[i] = false;
             i++;
         }
     }
@@ -97,7 +98,7 @@ int32_t get_adjacent_unknown(MsBoard* board, int32_t p, int32_t* adj) {
     int8_t n = s_adj_c[p];
     for (int8_t k = 0; k < n; k++) {
         int32_t nb = s_adj[p][k];
-        if (!board->known[nb]) adj[c++] = nb;
+        if (!board->revealed[nb]) adj[c++] = nb;
     }
     return c;
 }
@@ -105,24 +106,24 @@ int32_t get_adjacent_unknown(MsBoard* board, int32_t p, int32_t* adj) {
 int32_t get_adjacent_unknown_c(MsBoard* board, int32_t p) {
     int32_t c = 0;
     int8_t n = s_adj_c[p];
-    for (int8_t k = 0; k < n; k++) c += !board->known[s_adj[p][k]];
+    for (int8_t k = 0; k < n; k++) c += !board->revealed[s_adj[p][k]];
     return c;
 }
 
-bool is_edge(MsBoard* board, int32_t p) {
-    bool kp = board->known[p];
+bool is_frontier(MsBoard* board, int32_t p) {
+    bool kp = board->revealed[p];
     int8_t n = s_adj_c[p];
     for (int8_t k = 0; k < n; k++)
-        if (board->known[s_adj[p][k]] != kp) return true;
+        if (board->revealed[s_adj[p][k]] != kp) return true;
     return false;
 }
 
 void print_board(MsBoard* board) {
     for (int32_t y = 0; y < board->h; y++) {
         for (int32_t x = 0; x < board->w; x++) {
-            if (board->known[y*board->w + x]){
-                if (board->v[y*board->w + x] == 0) printf(" ");
-                else printf("%d", board->v[y*board->w + x]);
+            if (board->revealed[y*board->w + x]){
+                if (board->hint[y*board->w + x] == 0) printf(" ");
+                else printf("%d", board->hint[y*board->w + x]);
             }
             else {
                 printf(".");
@@ -158,8 +159,8 @@ void print_board_pretty(MsBoard* board, bool move_cursor) {
     for (int32_t y = 0; y < board->h; y++) {
         printf("┃");
         for (int32_t x = 0; x < board->w; x++) {
-            if (board->known[y*board->w + x]){
-                printf("%s", color_nums[board->v[y*board->w + x]]);
+            if (board->revealed[y*board->w + x]){
+                printf("%s", color_nums[board->hint[y*board->w + x]]);
             }
             else {
                 printf("%s", color_nums[9]);

@@ -14,7 +14,7 @@ MsStatus ms_solve(MsBoard* board, int32_t depth, MsResult* result, double* p_out
     if (depth < 1) return MS_ERR_INVALID_PARAM;
     if (depth > MS_MAX_DEPTH) return MS_ERR_INVALID_PARAM;
 
-    *result = (MsResult){ .status = MS_OK, .best_move = -1, .p_mine = 1.0 };
+    *result = (MsResult){ .status = MS_OK, .move = -1, .p_loss = 1.0 };
 
     get_solver_result(board, depth, result, p_out);
 

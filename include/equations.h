@@ -6,20 +6,21 @@
 
 typedef struct Equation {
     Mask mask;
-    int32_t amount;
+    int32_t mine_count;
 } Equation;
 
 typedef struct EquationSet {
     Equation equations[MAX_SQUARES];
     int32_t equation_c;
-    int32_t splits_length[MAX_EDGE_SIZE];
-    int32_t splits_start[MAX_EDGE_SIZE];
-    int32_t split_c;
+    int32_t group_length[MAX_FRONTIER_SIZE];
+    int32_t group_start[MAX_FRONTIER_SIZE];
+    int32_t group_c;
 
     Mask solved_mask;
     Mask solved_mines;
 } EquationSet;
 
-MsStatus get_equation_set(MsBoard* board, Edge* edge, EquationSet* equation_set, ProbabilityMap* pmap);
+/** Builds and fully reduces the equation set for the current board state. */
+MsStatus build_equation_set(MsBoard* board, Frontier* frontier, EquationSet* equation_set, ProbabilityMap* pmap);
 
 #endif

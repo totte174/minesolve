@@ -4,36 +4,36 @@
 
 static void calculate_adjacent_mines(MsBoard* board) {
     for (int32_t i = 0; i < board->w * board->h; i++) {
-        board->v[i] = 0;
+        board->hint[i] = 0;
         int32_t adj[8];
         int32_t adj_c = get_adjacent(board, i, adj);
         for (int32_t j = 0; j < adj_c; j++) {
-            if (board->mines[adj[j]]) board->v[i] += 1;
+            if (board->mines[adj[j]]) board->hint[i] += 1;
         }
     }
 }
 
 static void generate_board(int32_t mine_c, MsBoard* board) {
-    board->mine_c = 0;
-    board->unknown_c = board->w * board->h;
+    board->mine_count = 0;
+    board->unrevealed_c = board->w * board->h;
     for (int32_t i = 0; i < board->w * board->h; i++) {
-        board->v[i] = 0;
-        board->known[i] = false;
+        board->hint[i] = 0;
+        board->revealed[i] = false;
         board->mines[i] = false;
     }
 
-    while (board->mine_c < mine_c) {
+    while (board->mine_count < mine_c) {
         int32_t i = rand() % (board->w * board->h);
         if (board->mines[i]) continue;
         board->mines[i] = true;
-        board->mine_c += 1;
+        board->mine_count += 1;
     }
 
     calculate_adjacent_mines(board);
 }
 
 static bool board_move(MsBoard* board, int32_t i, bool first_click) {
-    if (board->known[i]) return true;
+    if (board->revealed[i]) return true;
 
     if (board->mines[i]) {
         if (first_click) {
@@ -50,9 +50,9 @@ static bool board_move(MsBoard* board, int32_t i, bool first_click) {
         else return false;
     }
     else {
-        board->known[i] = true;
-        board->unknown_c -= 1;
-        if (board->v[i] == 0) {
+        board->revealed[i] = true;
+        board->unrevealed_c -= 1;
+        if (board->hint[i] == 0) {
             int32_t adj[8];
             int32_t adj_c = get_adjacent(board, i, adj);
             for (int32_t j = 0; j < adj_c; j++) board_move(board, adj[j], false);
@@ -76,7 +76,7 @@ void simulate(Arguments* args) {
         bool first_move = true;
         bool alive = true;
 
-        while (board.unknown_c > args->mines && alive) {
+        while (board.unrevealed_c > args->mines && alive) {
             if (args->show_board) {
                 if (args->ascii) {
                     print_board(&board);
@@ -106,16 +106,16 @@ void simulate(Arguments* args) {
                 exit(1);
             }
 
-            if (board.known[solver_result.best_move]) {
+            if (board.revealed[solver_result.move]) {
                 print_board(&board);
                 fprintf(stderr, "BEST VALUE IS KNOWN\n");
                 exit(1);
             }
 
-            if (p_a[solver_result.best_move] == 0) {
+            if (p_a[solver_result.move] == 0) {
                 // If multiple solved zeros, click them all
                 for (int32_t i = 0; i < board.w * board.h; i++) {
-                    if (p_a[i] == 0 && !board.known[i]) {
+                    if (p_a[i] == 0 && !board.revealed[i]) {
                         if (!board_move(&board, i, first_move)) {
                             fprintf(stderr, "MINE WHERE P=0\n");
                             exit(1);
@@ -123,7 +123,7 @@ void simulate(Arguments* args) {
                     }
                 }
             }
-            else if (!board_move(&board, solver_result.best_move, first_move)) {
+            else if (!board_move(&board, solver_result.move, first_move)) {
                 alive = false;
             }
             first_move = false;
@@ -159,7 +159,7 @@ void solve_board(Arguments* args) {
     ms_board_init(&board, args->width, args->height, args->mines, args->wrapping_borders);
     ms_board_parse(&board, args->buf, args->buf_size);
 
-    if (board.unknown_c == board.mine_c) {
+    if (board.unrevealed_c == board.mine_count) {
         fprintf(stderr, "Board is already solved.\n");
         exit(1);
     }
@@ -180,7 +180,7 @@ void solve_board(Arguments* args) {
         fprintf(stderr, "Warning: search budget exceeded; result from approximate solver.\n");
     }
 
-    printf("(%d, %d)\n", solver_result.best_move % board.w, solver_result.best_move / board.w);
+    printf("(%d, %d)\n", solver_result.move % board.w, solver_result.move / board.w);
 }
 
 void show_probability(Arguments* args) {
@@ -190,7 +190,7 @@ void show_probability(Arguments* args) {
     ms_board_init(&board, args->width, args->height, args->mines, args->wrapping_borders);
     ms_board_parse(&board, args->buf, args->buf_size);
 
-    if (board.unknown_c == board.mine_c) {
+    if (board.unrevealed_c == board.mine_count) {
         fprintf(stderr, "Board is already solved.\n");
         exit(1);
     }
@@ -213,7 +213,7 @@ void show_probability(Arguments* args) {
 
     for (int32_t y = 0; y < board.h; y++) {
         for (int32_t x = 0; x < board.w; x++) {
-            if (board.known[y * board.w + x]) {
+            if (board.revealed[y * board.w + x]) {
                 printf("     ");
             }
             else {

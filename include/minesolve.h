@@ -51,24 +51,24 @@ typedef enum MsStatus {
  * MsBoard represents the current visible state of a Minesweeper board.
  *
  * Fields:
- *   w, h      — board dimensions.
- *   mine_c    — total number of mines.
- *   unknown_c — number of unrevealed (unknown) squares.
- *   v[]       — revealed value (0-8) for each square; 0 if unknown.
- *   known[]   — true if square is revealed.
- *   wrapping_borders — whether the board wraps at edges.
+ *   w, h          — board dimensions.
+ *   mine_count    — total number of mines.
+ *   unrevealed_c  — number of unrevealed (unknown) squares.
+ *   hint[]        — revealed value (0-8) for each square; 0 if unknown.
+ *   revealed[]    — true if square is revealed.
+ *   wrapping      — whether the board wraps at edges.
  *
  * Squares are stored in row-major order: index = y * w + x.
  */
 typedef struct MsBoard {
     int32_t w;
     int32_t h;
-    int32_t mine_c;
-    int32_t unknown_c;
-    int32_t v[MS_MAX_SQUARES];
-    bool    known[MS_MAX_SQUARES];
+    int32_t mine_count;
+    int32_t unrevealed_c;
+    int32_t hint[MS_MAX_SQUARES];
+    bool    revealed[MS_MAX_SQUARES];
     bool    mines[MS_MAX_SQUARES]; /**< Only valid during simulation; leave false for analysis. */
-    bool    wrapping_borders;
+    bool    wrapping;
 } MsBoard;
 
 /* ----------- Solve result ----------- */
@@ -77,19 +77,19 @@ typedef struct MsBoard {
  * Result of ms_solve().
  *
  * Fields:
- *   status     — MS_OK on success; MS_OK_FALLBACK if the result came from
- *                the approximate fallback solver.
- *   best_move  — flat index (y * w + x) of the recommended square to reveal.
- *   p_mine     — at depth 1 (or MS_OK_FALLBACK): probability [0, 1] that
- *                best_move contains a mine.
- *                at depth > 1: probability of losing (hitting a mine) within
- *                the depth-step lookahead window when playing optimally from
- *                best_move onward.  Values of exactly 0 or 1 are always exact.
+ *   status  — MS_OK on success; MS_OK_FALLBACK if the result came from
+ *              the approximate fallback solver.
+ *   move    — flat index (y * w + x) of the recommended square to reveal.
+ *   p_loss  — at depth 1 (or MS_OK_FALLBACK): probability [0, 1] that
+ *              move contains a mine.
+ *              at depth > 1: probability of losing (hitting a mine) within
+ *              the depth-step lookahead window when playing optimally from
+ *              move onward.  Values of exactly 0 or 1 are always exact.
  */
 typedef struct MsResult {
     MsStatus status;
-    int32_t  best_move;
-    double   p_mine;
+    int32_t  move;
+    double   p_loss;
 } MsResult;
 
 /* ----------- API ----------- */

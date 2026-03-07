@@ -6,9 +6,9 @@
 #include "probability.h"
 
 typedef struct SolverSearchState {
-    int32_t search_depth;
-    int32_t prev_positions[MAX_SEARCH];
-    int32_t prev_val[MAX_SEARCH];
+    int32_t depth;
+    int32_t positions[MAX_SEARCH];
+    int32_t values[MAX_SEARCH];
 } SolverSearchState;
 
 #ifdef TRANSPOSITION_TABLE
@@ -29,8 +29,11 @@ typedef struct TranspositionTable {
 } TranspositionTable;
 #endif
 
+/** Finds the best move using depth-limited lookahead search. */
 void get_solver_result(MsBoard* board, int32_t max_depth, MsResult* result, double* p_a);
+/** Finds the best move using single-depth probability only. */
 void get_solver_result_basic(MsBoard* board, MsResult* result, double* p_a);
+/** Computes per-square mine probabilities for the current board. */
 MsStatus get_board_probabilities(MsBoard* board, double* p_a);
 
 #endif
