@@ -1,8 +1,9 @@
 #include "equations.h"
 
 /* Initializes Frontier and EquationSet from the board.
- * Creates one equation per revealed square that has adjacent unrevealed squares. */
-void extract_frontier(MsBoard *board, Frontier *frontier, EquationSet *equation_set) {
+ * Creates one equation per revealed square that has adjacent unrevealed squares.
+ * Returns MS_ERR_INVALID_BOARD if a non-zero hint has no adjacent unknowns. */
+MsStatus extract_frontier(MsBoard *board, Frontier *frontier, EquationSet *equation_set) {
     frontier->frontier_c = 0;
     frontier->unconstrained_c = 0;
     frontier->solved_c = 0;
@@ -19,7 +20,11 @@ void extract_frontier(MsBoard *board, Frontier *frontier, EquationSet *equation_
         if (board->revealed[p]){
             int32_t adj[8];
             int32_t adj_c = get_adjacent_unknown(board, p, adj);
-            if (adj_c > 0) {
+            if (adj_c == 0) {
+                if (board->hint[p] > 0) return MS_ERR_INVALID_BOARD;
+                continue;
+            }
+            {
                 Equation* equation = equation_set->equations + equation_set->equation_c;
                 mask_reset(equation->mask);
                 equation->mine_count = board->hint[p];
@@ -40,6 +45,7 @@ void extract_frontier(MsBoard *board, Frontier *frontier, EquationSet *equation_
     }
     for (int32_t i = 0; i < frontier->frontier_c; i++) edge_index[frontier->frontier[i]] = 0;
     frontier->unconstrained_c = board->unrevealed_c - frontier->frontier_c;
+    return MS_OK;
 }
 
 
@@ -261,9 +267,10 @@ void find_groups(Frontier *frontier, EquationSet *equation_set, ProbabilityMap *
 }
 
 MsStatus build_equation_set(MsBoard *board, Frontier *frontier, EquationSet *equation_set, ProbabilityMap *pmap){
-    extract_frontier(board, frontier, equation_set);
+    MsStatus status = extract_frontier(board, frontier, equation_set);
+    if (status) return status;
 
-    MsStatus status = reduce_equations(equation_set);
+    status = reduce_equations(equation_set);
     if (status) return status;
 
     find_groups(frontier, equation_set, pmap);
