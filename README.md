@@ -3,6 +3,8 @@ minesolve
 </h1>
 <p align="center">
 A highly optimized Minesweeper solver implemented in C, designed for efficiency and high win rates.
+<br>
+Try out the solver <a href="https://minesweeper.totte.net/">here!</a>
 </p>
 <p align="center">
 <img src="./assets/gif/simulate.gif">
@@ -32,82 +34,33 @@ cmake -B build
 make -C build
 ```
 
-This produces three build artifacts:
-
-| Artifact | Description |
-|---|---|
-| `build/minesolve` | CLI binary |
-| `build/libminesolve.a` | Static library |
-| `build/libminesolve.so` | Shared library |
-
-### Makefile shortcuts
-
-```sh
-make          # configure + build (Release)
-make debug    # configure + build (Debug)
-make lib      # build library targets only
-make install  # install to system (CMAKE_INSTALL_PREFIX)
-make clean    # remove build directory
-```
-
-### Optional: profiling build
-
-```sh
-cmake -B build -DMINESOLVE_ENABLE_PROFILING=ON
-make -C build
-```
+Produces `build/minesolve` (CLI), `build/libminesolve.a`, and `build/libminesolve.so`.
 
 ## CLI usage
 
 ```
-Usage: minesolve [OPTION...] [BOARD]
+minesolve [OPTION...] [BOARD]
 ```
-
-### Board configuration
 
 | Option | Description |
 |---|---|
-| `-c beginner\|intermediate\|expert` | Use a preset (9×9/10, 16×16/40, 30×16/99) |
-| `-w N`, `-h N`, `-m N` | Width, height, mine count |
-| `-W` | Enable wrapping borders |
+| `-c`, `--config=beginner\|intermediate\|expert` | Use a preset (9×9/10, 16×16/40, 30×16/99) |
+| `-w`, `--width=N` / `-h`, `--height=N` / `-m`, `--mines=N` | Custom board dimensions |
+| `-W`, `--wrap` | Enable wrapping borders |
+| `-f`, `--file=FILE` | Read board from file |
+| `-d`, `--depth=N` | Search depth 1–8 (default: 1) |
+| `-p`, `--probability` | Print per-square mine probability grid |
+| `-s`, `--simulate=N` | Simulate N games and print win count |
+| `-S`, `--show-board` | Display the board |
+| `-a`, `--ascii` | Plain ASCII output (no ANSI / Unicode) |
 
-### Input
-
-A board can be supplied via:
-
-```sh
-minesolve -f board.txt          # file
-minesolve < board.txt           # stdin
-minesolve "2...21112222..."     # inline argument
-```
-
-**Board format:** digits `0`–`8` for revealed squares, space for revealed 0, `.`/`x`/`?` for unknown, newlines as row separators.
-
-### Actions
-
-| Option | Description |
-|---|---|
-| *(default)* | Print `(x, y)` of the best square to reveal |
-| `-p` | Print per-square mine probability grid |
-| `-S` | Display the board |
-| `-s N` | Simulate N games and print the win count |
-| `-d N` | Search depth 1–8 (default: 1) |
-| `-a` | Plain ASCII output (no ANSI / Unicode) |
-
-### Examples
+**Board format:** digits `0`–`8` for revealed squares, `.`/`x`/`?` for unknown, newlines as row separators. Supply via `-f`, stdin, or inline argument.
 
 ```sh
-# Solve a board from a file at depth 2
-minesolve --config=expert --depth=2 -f board.txt
-
-# Show mine probabilities
-minesolve --config=expert --probability < board.txt
-
-# Run 1000 simulated expert games
-minesolve --config=expert --simulate=1000
-
-# Watch the solver play in the terminal
-minesolve --config=expert --simulate=10 --show-board
+minesolve --config=expert --depth=2 --file=board.txt   # solve for best move at depth 2
+minesolve --config=expert --probability < board.txt    # show bomb probabilities
+minesolve --config=expert --simulate=1000              # simulate 1000 games and print number of wins
+minesolve --config=expert --simulate=100 --show-board  # watch the solver play random games
 ```
 
 ## Docker
